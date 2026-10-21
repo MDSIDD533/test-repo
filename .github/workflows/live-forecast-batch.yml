@@ -1,0 +1,49 @@
+name: Live two-minute forecast batch (10 trials)
+
+on:
+  push:
+    paths:
+      - ".github/workflows/live-forecast-batch.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-forecast-batch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Run 10 live trials, starting every 5 minutes
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          mkdir -p forecast-batch-reports
+          for i in $(seq 1 10); do
+            echo "===== TRIAL $i / 10 START $(date -u +%Y-%m-%dT%H:%M:%SZ) ====="
+            python scripts/two_minute_forecast_test.py BTCUSDT > "forecast-batch-reports/trial-$(printf '%03d' "$i").log" 2>&1
+            code=$?
+            if [ -f two_minute_forecast_report.json ]; then
+              cp two_minute_forecast_report.json "forecast-batch-reports/trial-$(printf '%03d' "$i").json"
+            fi
+            echo "$code" > "forecast-batch-reports/trial-$(printf '%03d' "$i").exitcode"
+            tail -n 30 "forecast-batch-reports/trial-$(printf '%03d' "$i").log" || true
+            echo "===== TRIAL $i / 10 END exit_code=$code $(date -u +%Y-%m-%dT%H:%M:%SZ) ====="
+            if [ "$i" -lt 10 ]; then
+              # Each script waits 120 seconds; this 180-second pause makes starts 5 minutes apart.
+              sleep 180
+            fi
+          done
+      - name: Upload forecast reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-forecast-batch-10
+          path: forecast-batch-reports/
+          if-no-files-found: error
