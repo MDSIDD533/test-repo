@@ -71,7 +71,7 @@ def test_backtest_includes_entry_candle_for_target_exit(monkeypatch):
     assert data["trades"] > 0
     assert data["results"][0]["outcome"] == "WIN"
     assert data["final_balance"] > data["initial_balance"]
-    assert "excludes fees and slippage" in data["warning"]
+    assert "excludes fees, slippage" in data["warning"]
 
 def test_backtest_uses_open_price_when_target_is_gapped_over(monkeypatch):
     gap_open = {}
