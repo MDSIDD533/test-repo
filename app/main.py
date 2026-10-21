@@ -24,7 +24,7 @@ def market_summary():
     except MarketDataError as exc: raise HTTPException(status_code=502,detail=str(exc))
 
 @app.get('/api/scanner')
-def scanner(limit:int=Query(default=100,ge=10,le=500),analyze_top:int=Query(default=20,ge=0,le=50)):
+def scanner(limit:int=Query(default=2000,ge=10,le=3000),analyze_top:int=Query(default=20,ge=0,le=50)):
     try:
         rows=all_24h_tickers(); output=[]
         for i,row in enumerate(rows):
