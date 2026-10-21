@@ -137,24 +137,34 @@ def test_agent_pipeline_api_runs_available_stages_and_fails_closed(monkeypatch):
             })
         return rows
 
+    from datetime import datetime, timezone
+
     monkeypatch.setattr(main, "candles", fresh_candles)
+    monkeypatch.setattr(main, "fetch_crypto_news", lambda symbol, as_of: [{
+        "title": "Bitcoin market update",
+        "source": "Test RSS",
+        "url": "https://example.com/bitcoin-market-update",
+        "published_at": datetime.now(timezone.utc).isoformat(),
+        "summary": "Synthetic test fixture; not live research.",
+    }])
     response = client.get("/api/agents/run/BTCUSDT?interval=5m&simulation_count=500")
     assert response.status_code == 200
     data = response.json()
     assert data["symbol"] == "BTCUSDT"
     assert data["action"] == "NO TRADE"
-    assert data["status"] == "incomplete"
-    assert data["stages"][0]["stage"] == "market_data"
-    assert data["stages"][0]["status"] == "completed"
-    assert data["stages"][1]["stage"] == "market_analysis"
-    assert data["stages"][1]["status"] == "completed"
-    # TimeTraveler is implemented and runs before Research in the current pipeline.
-    assert data["stages"][2]["stage"] == "timetraveler"
-    assert data["stages"][2]["status"] == "completed"
-    assert data["stages"][3]["stage"] == "research"
-    assert data["stages"][3]["status"] == "not_configured"
-    # The pipeline must fail closed until the required downstream agents exist.
-    assert data["action"] == "NO TRADE"
+    assert data["status"] == "completed_no_trade"
+    assert [stage["stage"] for stage in data["stages"]] == [
+        "market_data", "market_analysis", "timetraveler", "research",
+        "prediction", "risk_decision", "report",
+    ]
+    assert all(stage["status"] == "completed" for stage in data["stages"])
+    assert data["stages"][0]["result"]["validation"]["valid"] is True
+    assert data["stages"][2]["result"]["simulation_count"] == 500
+    assert data["stages"][3]["result"]["items_accepted"] == 1
+    assert data["stages"][4]["result"]["calibrated"] is False
+    assert data["stages"][5]["result"]["action"] == "NO TRADE"
+    assert data["stages"][5]["result"]["authorized"] is False
+    assert data["stages"][6]["result"]["decision"] == "NO TRADE"
 
 
 def test_agent_pipeline_api_rejects_unsupported_simulation_count():
