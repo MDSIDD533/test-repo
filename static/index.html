@@ -30,5 +30,95 @@ async function analyze(){const sym=$('symbol').value.trim().toUpperCase();if(!sy
 async function loadTrades(){try{try{await api('/api/paper/refresh',{method:'POST'})}catch(refreshError){console.warn('Paper prices could not refresh:',refreshError.message)}const d=await api('/api/paper/trades');$('tradeRows').innerHTML=d.trades.map(t=>'<tr><td>'+t.symbol+'</td><td>'+money(t.entry)+'</td><td>'+money(t.quantity)+'</td><td>'+money(t.sl)+'</td><td>'+t.status+(t.exit_reason?' · '+t.exit_reason:'')+(Number.isFinite(Number(t.pnl))?' · P/L '+money(t.pnl):'')+'</td></tr>').join('')||'<tr><td colspan="5">No trades yet.</td></tr>'}catch(e){console.error(e)}}
 $('refresh').onclick=loadScanner;$('search').oninput=renderScanner;$('analyze').onclick=analyze;$('lang').onchange=applyLanguage;
 $('paperBtn').onclick=async()=>{if(!lastAnalysis||lastAnalysis.signal!=='BUY'){alert('Paper BUY is only available when latest signal is BUY.');return}if(!confirm('Open a simulated paper trade? No real order will be placed.'))return;try{await api('/api/paper/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symbol:lastAnalysis.symbol})});await loadTrades();await loadAccount();alert('Paper trade opened. No live order was sent.')}catch(e){alert(e.message)}};
-async function runAgentAnalysis(){const symbol=$('symbol').value.trim().toUpperCase()||'BTCUSDT';const interval=$('agentInterval').value;const sims=$('simCount').value;$('agentStatus').textContent='Running configured pipeline for '+symbol+'…';$('agentCards').innerHTML='<div class="panel span-12">Running…</div>';try{const d=await api('/api/agents/run/'+encodeURIComponent(symbol)+'?interval='+encodeURIComponent(interval)+'&simulation_count='+sims);const stages=d.stages||[];const names={market_data:'Market Data Agent',market_analysis:'Market Analysis Agent',research:'Research Agent',prediction:'Prediction Agent',risk_decision:'Risk Decision Agent',timetraveler:'TimeTraveler Agent',report:'Report Agent'};const ordered=['market_data','market_analysis','timetraveler','research','prediction','risk_decision','report'];const stageByName=Object.fromEntries(stages.map(s=>[s.stage,s]));const statusText={completed:'COMPLETED',failed:'FAILED',not_configured:'NOT CONFIGURED',blocked:'BLOCKED'};$('agentStatus').textContent='Run '+d.run_id+' · Overall: '+d.status.toUpperCase()+' · Decision: '+d.action+' · As of '+d.as_of;$('agentCards').innerHTML=ordered.map(stageName=>{const s=stageByName[stageName]||{stage:stageName,status:'blocked',warnings:['Not run because an earlier required stage is incomplete.']};const result=s.result||{},evidence=s.evidence||result.evidence||[],lines=[];if(s.stage==='market_data'){lines.push('Candles: '+(result.candle_count??result.candles?.length??'—'));if(result.validation)lines.push('Validation: '+(result.validation.valid?'VALID':'INVALID'));}if(s.stage==='market_analysis'){lines.push('Signal: '+(result.signal||'—'));lines.push('Confidence: '+(result.confidence??'—')+'% (heuristic)');for(const k of ['entry','tp1','tp2','tp3','sl'])if(result[k]!==undefined)lines.push(k.toUpperCase()+': '+result[k]);if(Array.isArray(result.reasons))lines.push(...result.reasons.slice(0,4));}if(s.stage==='research'){lines.push('Evidence accepted: '+(result.items_accepted??evidence.length));evidence.slice(0,4).forEach(e=>lines.push((e.title||'Source')+' · '+(e.source||'')+' · '+(e.published_at||'')));}if(s.stage==='timetraveler'){lines.push('Simulations: '+(result.simulation_count??'—'));lines.push('Median scenario return: '+(result.median_return_pct??'—')+'%');lines.push('5th–95th percentile: '+(result.p05_return_pct??'—')+'% / '+(result.p95_return_pct??'—')+'%');lines.push('Positive scenarios: '+(result.scenario_positive_pct??'—')+'% (not a calibrated win probability)');}if(s.stage==='prediction'){lines.push('Direction: '+(result.direction||'—'));lines.push('Calibrated: '+(result.calibrated===true?'YES':'NO'));lines.push('TP-before-SL probability: '+(result.probability_tp_before_sl??'Unavailable'));if(Array.isArray(result.warnings))lines.push(...result.warnings.slice(0,2));}if(s.stage==='risk_decision'){lines.push('Decision: '+(result.action||'NO TRADE'));lines.push('Authorized: '+(result.authorized===true?'YES':'NO'));if(Array.isArray(result.reasons))lines.push(...result.reasons.slice(0,4));}if(s.stage==='report'){lines.push(result.summary||'Report generated');lines.push('Completed stages: '+((result.completed_stages||[]).length));lines.push('Incomplete stages: '+((result.incomplete_stages||[]).length));}const notes=[...(s.warnings||[]),...(s.errors||[])];return '<div class="panel span-3"><div style="display:flex;justify-content:space-between;gap:8px"><b>'+names[s.stage]+'</b><span class="pill '+(s.status==='completed'?'safe':s.status==='failed'?'error':'wait')+'">'+(statusText[s.status]||s.status)+'</span></div><ul class="reasons">'+(lines.length?lines:notes).map(x=>'<li>'+String(x)+'</li>').join('')+'</ul>'+(s.status!=='completed'&&notes.length?'<p class="notice">'+notes.join(' · ')+'</p>':'')+'</div>'}).join('')||'<div class="panel span-12">No stages returned.</div>';}catch(e){$('agentStatus').textContent='Agent pipeline failed: '+e.message;$('agentStatus').className='status error';$('agentCards').innerHTML='<div class="panel span-12 error">'+e.message+'</div>'}}$('runAgents').onclick=runAgentAnalysis;\napplyLanguage();loadScanner();loadAccount();loadTrades();analyze();runAgentAnalysis();setInterval(async()=>{await loadTrades();await loadAccount()},15000);$('expandChart').onclick=()=>{$('chartPanel').classList.add('expanded');$('expandChart').hidden=true;$('minimizeChart').hidden=false};$('minimizeChart').onclick=()=>{$('chartPanel').classList.remove('expanded');$('expandChart').hidden=false;$('minimizeChart').hidden=true};window.addEventListener('keydown',e=>{if(e.key==='Escape'){$('chartPanel').classList.remove('expanded');$('expandChart').hidden=false;$('minimizeChart').hidden=true}});window.addEventListener('resize',()=>{if(lastCandles.length)drawChart(lastCandles,lastAnalysis)});
+async function runAgentAnalysis() {
+  const symbol = $('symbol').value.trim().toUpperCase() || 'BTCUSDT';
+  const interval = $('agentInterval').value;
+  const sims = $('simCount').value;
+  $('agentStatus').textContent = 'Running configured pipeline for ' + symbol + '…';
+  $('agentCards').innerHTML = '<div class="panel span-12">Running…</div>';
+  try {
+    const d = await api('/api/agents/run/' + encodeURIComponent(symbol) + '?interval=' + encodeURIComponent(interval) + '&simulation_count=' + sims);
+    const stages = d.stages || [];
+    const names = {
+      market_data: 'Market Data Agent',
+      market_analysis: 'Market Analysis Agent',
+      timetraveler: 'TimeTraveler Agent',
+      research: 'Research Agent',
+      prediction: 'Prediction Agent',
+      risk_decision: 'Risk Decision Agent',
+      report: 'Report Agent'
+    };
+    const ordered = ['market_data', 'market_analysis', 'timetraveler', 'research', 'prediction', 'risk_decision', 'report'];
+    const stageByName = Object.fromEntries(stages.map(function (stage) { return [stage.stage, stage]; }));
+    const statusText = { completed: 'COMPLETED', failed: 'FAILED', not_configured: 'NOT CONFIGURED', blocked: 'BLOCKED' };
+    $('agentStatus').textContent = 'Run ' + d.run_id + ' · Overall: ' + d.status.toUpperCase() + ' · Decision: ' + d.action + ' · As of ' + d.as_of;
+    const cards = ordered.map(function (stageName) {
+      const s = stageByName[stageName] || {
+        stage: stageName,
+        status: 'blocked',
+        warnings: ['Not run because an earlier required stage is incomplete.']
+      };
+      const result = s.result || {};
+      const evidence = s.evidence || result.evidence || [];
+      const lines = [];
+      if (s.stage === 'market_data') {
+        lines.push('Candles: ' + (result.candle_count || (result.candles && result.candles.length) || '—'));
+        if (result.validation) lines.push('Validation: ' + (result.validation.valid ? 'VALID' : 'INVALID'));
+      }
+      if (s.stage === 'market_analysis') {
+        lines.push('Signal: ' + (result.signal || '—'));
+        lines.push('Confidence: ' + (result.confidence == null ? '—' : result.confidence) + '% (heuristic)');
+        ['entry', 'tp1', 'tp2', 'tp3', 'sl'].forEach(function (key) {
+          if (result[key] !== undefined) lines.push(key.toUpperCase() + ': ' + result[key]);
+        });
+        (result.reasons || []).slice(0, 4).forEach(function (reason) { lines.push(reason); });
+      }
+      if (s.stage === 'timetraveler') {
+        lines.push('Simulations: ' + (result.simulation_count || '—'));
+        lines.push('Median scenario return: ' + (result.median_return_pct == null ? '—' : result.median_return_pct) + '%');
+        lines.push('5th–95th percentile: ' + (result.p05_return_pct == null ? '—' : result.p05_return_pct) + '% / ' + (result.p95_return_pct == null ? '—' : result.p95_return_pct) + '%');
+        lines.push('Positive scenarios: ' + (result.scenario_positive_pct == null ? '—' : result.scenario_positive_pct) + '% (not a calibrated win probability)');
+      }
+      if (s.stage === 'research') {
+        lines.push('Evidence accepted: ' + (result.items_accepted == null ? evidence.length : result.items_accepted));
+        evidence.slice(0, 4).forEach(function (item) {
+          lines.push((item.title || 'Source') + ' · ' + (item.source || '') + ' · ' + (item.published_at || ''));
+        });
+      }
+      if (s.stage === 'prediction') {
+        lines.push('Direction: ' + (result.direction || '—'));
+        lines.push('Calibrated: ' + (result.calibrated === true ? 'YES' : 'NO'));
+        lines.push('TP-before-SL probability: ' + (result.probability_tp_before_sl == null ? 'Unavailable' : result.probability_tp_before_sl));
+        (result.warnings || []).slice(0, 2).forEach(function (warning) { lines.push(warning); });
+      }
+      if (s.stage === 'risk_decision') {
+        lines.push('Decision: ' + (result.action || 'NO TRADE'));
+        lines.push('Authorized: ' + (result.authorized === true ? 'YES' : 'NO'));
+        (result.reasons || []).slice(0, 4).forEach(function (reason) { lines.push(reason); });
+      }
+      if (s.stage === 'report') {
+        lines.push(result.summary || 'Report generated');
+        lines.push('Completed stages: ' + ((result.completed_stages || []).length));
+        lines.push('Incomplete stages: ' + ((result.incomplete_stages || []).length));
+      }
+      const notes = (s.warnings || []).concat(s.errors || []);
+      const displayed = lines.length ? lines : notes;
+      const list = displayed.map(function (line) { return '<li>' + String(line) + '</li>'; }).join('');
+      const statusClass = s.status === 'completed' ? 'safe' : (s.status === 'failed' ? 'error' : 'wait');
+      const statusLabel = statusText[s.status] || s.status;
+      const note = s.status !== 'completed' && notes.length
+        ? '<p class="notice">' + notes.join(' · ') + '</p>'
+        : '';
+      return '<div class="panel span-3"><div style="display:flex;justify-content:space-between;gap:8px"><b>' +
+        names[s.stage] + '</b><span class="pill ' + statusClass + '">' + statusLabel +
+        '</span></div><ul class="reasons">' + list + '</ul>' + note + '</div>';
+    }).join('');
+    $('agentCards').innerHTML = cards || '<div class="panel span-12">No stages returned.</div>';
+  } catch (e) {
+    $('agentStatus').textContent = 'Agent pipeline failed: ' + e.message;
+    $('agentStatus').className = 'status error';
+    $('agentCards').innerHTML = '<div class="panel span-12 error">' + e.message + '</div>';
+  }
+}
+$('runAgents').onclick=runAgentAnalysis;\napplyLanguage();loadScanner();loadAccount();loadTrades();analyze();runAgentAnalysis();setInterval(async()=>{await loadTrades();await loadAccount()},15000);$('expandChart').onclick=()=>{$('chartPanel').classList.add('expanded');$('expandChart').hidden=true;$('minimizeChart').hidden=false};$('minimizeChart').onclick=()=>{$('chartPanel').classList.remove('expanded');$('expandChart').hidden=false;$('minimizeChart').hidden=true};window.addEventListener('keydown',e=>{if(e.key==='Escape'){$('chartPanel').classList.remove('expanded');$('expandChart').hidden=false;$('minimizeChart').hidden=true}});window.addEventListener('resize',()=>{if(lastCandles.length)drawChart(lastCandles,lastAnalysis)});
 </script></body></html>
