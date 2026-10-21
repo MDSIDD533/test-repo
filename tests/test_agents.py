@@ -69,3 +69,19 @@ def test_pipeline_rejects_blank_symbol():
     report = run_agent_pipeline("   ", complete_agents())
     assert report.status == "invalid_request"
     assert report.action == "NO TRADE"
+
+def test_pipeline_passes_requested_simulation_count_to_timetraveler():
+    report = run_agent_pipeline("BTCUSDT", complete_agents(), simulation_count=1000)
+    assert report.status == "completed"
+    time_traveler = next(stage for stage in report.stages if stage.stage == "timetraveler")
+    assert time_traveler.result["simulation_count"] == 1000
+
+
+def test_pipeline_rejects_unsupported_simulation_count():
+    try:
+        run_agent_pipeline("BTCUSDT", complete_agents(), simulation_count=250)
+    except ValueError as exc:
+        assert "100, 500, or 1000" in str(exc)
+    else:
+        raise AssertionError("Unsupported simulation count should be rejected")
+
