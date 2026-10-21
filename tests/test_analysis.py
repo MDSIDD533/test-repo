@@ -41,7 +41,13 @@ def test_analysis_uses_requested_recent_window():
     assert result["lookback_candles"] == 40
 
 
-def test_sell_stop_is_above_entry():
+def test_buy_targets_and_stop_are_ordered_correctly():
+    result = analyze_candles(make_candles(rising=True), "TESTUSDT", "5m")
+    assert result["signal"] == "BUY"
+    assert result["sl"] < result["entry"] < result["tp1"] < result["tp2"] < result["tp3"]
+
+
+def test_sell_targets_and_stop_are_ordered_correctly():
     result = analyze_candles(make_candles(rising=False), "TESTUSDT", "5m")
-    if result["signal"] == "SELL":
-        assert result["sl"] > result["entry"]
+    assert result["signal"] == "SELL"
+    assert result["tp3"] < result["tp2"] < result["tp1"] < result["entry"] < result["sl"]
