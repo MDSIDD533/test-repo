@@ -1,13 +1,9 @@
-"""Small, testable orchestration primitives for the multi-agent pipeline.
-
-Domain agents are injected as callables so the pipeline can be tested without
-network access and can degrade safely when an individual provider fails.
-"""
+"""Testable orchestration for the fail-closed multi-agent pipeline."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, Iterable
+from typing import Any, Callable
 import uuid
 
 
@@ -74,10 +70,11 @@ def run_agent_pipeline(
     as_of: str | None = None,
     simulation_count: int = 100,
 ) -> PipelineReport:
-    """Run injected stages in order; stop safely when a stage is missing/fails.
+    """Run every stage so one unavailable provider does not hide later blockers.
 
-    This is orchestration only. It does not fabricate research, forecasts, or
-    simulation outcomes when domain agents have not yet been implemented.
+    Stages must explicitly handle missing upstream outputs. Missing/failed
+    stages are recorded and downstream stages may report safe NO TRADE results.
+    This coordinator never fabricates agent output.
     """
     normalized_symbol = symbol.strip().upper()
     if simulation_count not in {100, 500, 1000}:
@@ -89,11 +86,11 @@ def run_agent_pipeline(
         "symbol": normalized_symbol,
         "as_of": as_of,
         "requested_simulations": simulation_count,
+        "_stage_statuses": {},
     }
     results: list[StageResult] = []
     warnings: list[str] = []
     action = "NO TRADE"
-    overall_status = "blocked"
 
     if not normalized_symbol:
         return PipelineReport(
@@ -110,16 +107,17 @@ def run_agent_pipeline(
         agent = agents.get(stage_name)
         if agent is None:
             message = f"Agent '{stage_name}' is not implemented/configured."
-            results.append(StageResult(
+            result = StageResult(
                 stage=stage_name,
                 status="not_configured",
                 warnings=[message],
                 started_at=_utc_now(),
                 completed_at=_utc_now(),
-            ))
+            )
+            results.append(result)
+            context["_stage_statuses"][stage_name] = result.status
             warnings.append(message)
-            overall_status = "incomplete"
-            break
+            continue
 
         started = _utc_now()
         try:
@@ -127,7 +125,7 @@ def run_agent_pipeline(
             if not isinstance(output, dict):
                 raise TypeError("Agent output must be a dictionary.")
             context[stage_name] = output
-            stage_result = StageResult(
+            result = StageResult(
                 stage=stage_name,
                 status="completed",
                 result=output,
@@ -136,24 +134,26 @@ def run_agent_pipeline(
                 started_at=started,
                 completed_at=_utc_now(),
             )
-            results.append(stage_result)
-            warnings.extend(stage_result.warnings)
+            results.append(result)
+            context["_stage_statuses"][stage_name] = result.status
+            warnings.extend(result.warnings)
         except Exception as exc:
             message = f"{stage_name} failed: {type(exc).__name__}: {exc}"
-            results.append(StageResult(
+            result = StageResult(
                 stage=stage_name,
                 status="failed",
                 errors=[message],
                 started_at=started,
                 completed_at=_utc_now(),
-            ))
+            )
+            results.append(result)
+            context["_stage_statuses"][stage_name] = result.status
             warnings.append(message)
-            overall_status = "failed"
-            break
 
-    if len(results) == len(PIPELINE_STAGES) and all(
+    all_completed = len(results) == len(PIPELINE_STAGES) and all(
         item.status == "completed" for item in results
-    ):
+    )
+    if all_completed:
         decision = context.get("risk_decision", {})
         prediction = context.get("prediction", {})
         calibrated = prediction.get("calibrated") is True
@@ -162,20 +162,32 @@ def run_agent_pipeline(
             probability_is_valid = probability is not None and 0 <= float(probability) <= 1
         except (TypeError, ValueError):
             probability_is_valid = False
-        if calibrated and probability_is_valid and decision.get("action") in {"BUY", "HOLD", "EXIT", "NO TRADE"}:
+        if (
+            calibrated
+            and probability_is_valid
+            and decision.get("action") in {"BUY", "HOLD", "EXIT", "NO TRADE"}
+        ):
             action = decision["action"]
-            overall_status = "completed"
+            status = "completed" if action != "NO TRADE" else "completed_no_trade"
         else:
             warnings.append(
                 "Prediction is not demonstrably calibrated or decision is invalid; action forced to NO TRADE."
             )
-            overall_status = "completed_no_trade"
+            status = "completed_no_trade"
+    elif any(item.status == "failed" for item in results):
+        status = "failed"
+    else:
+        status = "incomplete"
+
+    # A downstream agent cannot override the safety invariant.
+    if not all_completed or status != "completed":
+        action = "NO TRADE"
 
     return PipelineReport(
         run_id=run_id,
         symbol=normalized_symbol,
         as_of=as_of,
-        status=overall_status,
+        status=status,
         action=action,
         stages=results,
         warnings=warnings,
