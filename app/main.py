@@ -75,29 +75,72 @@ def paper_open(request:PaperOpenRequest):
 @app.post('/api/backtest/{symbol}')
 def backtest(symbol:str,interval:str='5m',limit:int=Query(default=500,ge=100,le=500)):
     try:
-        cs=candles(symbol,interval,limit); balance=1000.0; wins=0; losses=0; trades=[]
+        cs=candles(symbol,interval,limit)
+        balance=1000.0
+        wins=losses=0
+        trades=[]
+        next_available_index=80
         for end in range(80,len(cs)-1):
+            # Do not open another position while the previous simulated trade is active.
+            if end < next_available_index:
+                continue
             result=analyze_candles(cs[:end],symbol,interval)
-            if result['signal']!='BUY': continue
+            if result['signal']!='BUY':
+                continue
             # The signal is calculated using candles strictly before the entry candle.
-            # Shift SL/TP by the opening gap so risk distances remain tied to the signal.
-            signal_entry=float(result['entry']); entry=float(cs[end]['open'])
-            risk=max(signal_entry-float(result['sl']), 0.0)
-            reward=max(float(result['tp1'])-signal_entry, 0.0)
-            if entry <= 0 or risk <= 0 or reward <= 0: continue
-            stop=entry-risk; target=entry+reward
-            # Include the entry candle: SL/TP can be reached after its open.
-            future=cs[end:min(end+25,len(cs))]; exit_price=None; outcome='TIME_EXIT'
-            for candle in future:
-                # Model gaps at the candle open before checking intrabar touches.
-                # If both levels are touched intrabar, conservatively count the stop first.
+            signal_entry=float(result['entry'])
+            entry=float(cs[end]['open'])
+            risk=max(signal_entry-float(result['sl']),0.0)
+            reward=max(float(result['tp1'])-signal_entry,0.0)
+            if entry<=0 or risk<=0 or reward<=0:
+                continue
+            # Preserve the signal's risk/reward distances after the next-candle opening gap.
+            stop=entry-risk
+            target=entry+reward
+            future=cs[end:min(end+25,len(cs))]
+            exit_price=None
+            exit_index=None
+            outcome='TIME_EXIT'
+            for offset,candle in enumerate(future):
+                candle_index=end+offset
                 candle_open=float(candle['open'])
-                if candle_open<=stop: exit_price=candle_open; outcome='LOSS'; break
-                if candle_open>=target: exit_price=candle_open; outcome='WIN'; break
-                if candle['low']<=stop: exit_price=stop; outcome='LOSS'; break
-                if candle['high']>=target: exit_price=target; outcome='WIN'; break
-            if exit_price is None: exit_price=future[-1]['close'] if future else entry
-            pct=(exit_price-entry)/entry if entry else 0; balance*=1+pct; wins+=outcome=='WIN'; losses+=outcome=='LOSS'
-            trades.append({'entry':entry,'exit':exit_price,'outcome':outcome,'return_pct':round(pct*100,3)})
-        return {'symbol':symbol.upper(),'interval':interval,'initial_balance':1000,'final_balance':round(balance,2),'trades':len(trades),'wins':wins,'losses':losses,'win_rate_pct':round(wins/len(trades)*100,2) if trades else 0,'results':trades,'warning':'Simplified backtest excludes fees and slippage; not a prediction of future performance.'}
-    except (MarketDataError,ValueError) as exc: raise HTTPException(status_code=400,detail=str(exc))
+                # Model gap fills at the open; when both levels are touched intrabar,
+                # conservatively count the stop first.
+                if candle_open<=stop:
+                    exit_price=candle_open; outcome='LOSS'; exit_index=candle_index; break
+                if candle_open>=target:
+                    exit_price=candle_open; outcome='WIN'; exit_index=candle_index; break
+                if candle['low']<=stop:
+                    exit_price=stop; outcome='LOSS'; exit_index=candle_index; break
+                if candle['high']>=target:
+                    exit_price=target; outcome='WIN'; exit_index=candle_index; break
+            if exit_price is None:
+                exit_index=end+len(future)-1 if future else end
+                exit_price=future[-1]['close'] if future else entry
+            next_available_index=exit_index+1
+            pct=(exit_price-entry)/entry if entry else 0
+            balance*=1+pct
+            wins+=outcome=='WIN'
+            losses+=outcome=='LOSS'
+            trades.append({
+                'entry':entry,
+                'exit':exit_price,
+                'outcome':outcome,
+                'return_pct':round(pct*100,3),
+                'entry_candle_index':end,
+                'exit_candle_index':exit_index,
+            })
+        return {
+            'symbol':symbol.upper(),
+            'interval':interval,
+            'initial_balance':1000,
+            'final_balance':round(balance,2),
+            'trades':len(trades),
+            'wins':wins,
+            'losses':losses,
+            'win_rate_pct':round(wins/len(trades)*100,2) if trades else 0,
+            'results':trades,
+            'warning':'Simplified backtest excludes fees, slippage, and intrabar tick data; it allows only one open position at a time and does not predict future performance.',
+        }
+    except (MarketDataError,ValueError) as exc:
+        raise HTTPException(status_code=400,detail=str(exc))
