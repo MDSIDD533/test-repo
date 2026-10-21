@@ -9,7 +9,10 @@ def test_summary_separates_comparisons_from_data_failures(tmp_path):
         "comparison": {
             "direction_match": True,
             "almost_same": True,
-            "absolute_price_error_pct_of_start": 0.02,
+            "absolute_price_error_pct_of_start": 0.01,
+            "baseline_price": 100.0,
+            "actual_price": 100.02,
+            "forecast_price": 100.01,
         },
     }), encoding="utf-8")
     (tmp_path / "trial-001.exitcode").write_text("0", encoding="utf-8")
@@ -24,6 +27,9 @@ def test_summary_separates_comparisons_from_data_failures(tmp_path):
     assert result["completed_market_comparisons"] == 1
     assert result["direction_accuracy_pct"] == 100.0
     assert result["almost_same_passes"] == 1
+    assert result["model_vs_baseline_comparisons"] == 1
+    assert result["model_beats_zero_return_baseline_count"] == 1
+    assert result["zero_return_baseline_mean_absolute_error_pct"] == 0.02
     assert result["exit_code_zero_count"] == 1
     assert result["exit_code_nonzero_count"] == 1
     assert result["failed_or_incomplete_trials"] == ["trial-002.json"]
