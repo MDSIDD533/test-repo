@@ -29,7 +29,7 @@ class LiveChartPageTests(unittest.TestCase):
 
     def test_chart_reports_last_successful_refresh_time(self):
         self.assertIn("last updated ", self.chart)
-        self.assertIn("Market data unavailable: "+ "'.concat(e.message)", self.chart.replace("Market data unavailable: '+e.message", "Market data unavailable: '.concat(e.message)"))
+        self.assertIn("Market data unavailable: '+e.message", self.chart)
 
     def test_dashboard_loads_chart_without_lazy_loading_delay(self):
         self.assertRegex(
