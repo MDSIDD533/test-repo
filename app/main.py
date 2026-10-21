@@ -8,6 +8,7 @@ from app import paper
 from app.agents import run_agent_pipeline
 from app.market_data_agent import make_market_data_agent
 from app.market_analysis_agent import run_market_analysis_agent
+from app.timetraveler_agent import run_timetraveler_agent
 
 ROOT = Path(__file__).resolve().parent.parent
 app = FastAPI(title='Crypto Spot Trading Analysis Agent', version='0.1.0', description='Analysis and paper trading only. Live trading is disabled.')
@@ -38,6 +39,7 @@ def run_agents(symbol: str, interval: str = '5m', simulation_count: int = Query(
         {
             'market_data': market_agent,
             'market_analysis': run_market_analysis_agent,
+            'timetraveler': run_timetraveler_agent,
         },
         simulation_count=simulation_count,
     ).to_dict()
