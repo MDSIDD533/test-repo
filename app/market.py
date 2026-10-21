@@ -5,17 +5,37 @@ from functools import lru_cache
 from typing import Any
 
 BASE_URL = os.getenv('BINANCE_BASE_URL', 'https://api.binance.com').rstrip('/')
+# Binance documents several API hostnames; trying alternates helps when one route
+# is slow or unreachable from a user's network.
+DEFAULT_ENDPOINTS = (
+    'https://api.binance.com',
+    'https://api1.binance.com',
+    'https://api2.binance.com',
+    'https://api3.binance.com',
+)
 
 class MarketDataError(RuntimeError):
     pass
 
 def _get(path: str, params: dict[str, Any] | None = None) -> Any:
-    try:
-        response = requests.get(BASE_URL + path, params=params, timeout=12)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as exc:
-        raise MarketDataError('Binance market data request failed: ' + str(exc)) from exc
+    configured = [BASE_URL]
+    if BASE_URL == 'https://api.binance.com':
+        configured.extend(url for url in DEFAULT_ENDPOINTS if url != BASE_URL)
+    errors = []
+    for base_url in dict.fromkeys(configured):
+        try:
+            # Separate connect/read limits avoid hanging for a long time on a
+            # connection that was established but never returned response data.
+            response = requests.get(base_url + path, params=params, timeout=(4, 8))
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as exc:
+            errors.append(f'{base_url}: {exc}')
+    detail = '; '.join(errors)
+    raise MarketDataError(
+        'Binance market data request failed after trying available API endpoints. '
+        'Check internet/VPN/firewall access and retry. Details: ' + detail
+    ) from (errors and None)
 
 @lru_cache(maxsize=1)
 def eligible_usdt_spot_symbols() -> set[str]:
