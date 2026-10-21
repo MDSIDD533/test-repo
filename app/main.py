@@ -57,6 +57,16 @@ def analyze(symbol:str,interval:str='5m'):
 def paper_account(): return paper.account()
 @app.get('/api/paper/trades')
 def paper_trades(): return {'trades':paper.list_trades()}
+
+@app.post('/api/paper/refresh')
+def paper_refresh():
+    try:
+        rows = all_24h_tickers()
+        prices = {row['symbol']: row['price'] for row in rows}
+        closed = paper.update_prices(prices)
+        return {'updated': True, 'closed_trades': closed, 'account': paper.account()}
+    except MarketDataError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
 @app.post('/api/paper/open')
 def paper_open(request:PaperOpenRequest):
     try: return paper.open_trade(analyze(request.symbol,'5m'))
