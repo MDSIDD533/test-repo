@@ -117,3 +117,42 @@ def test_backtest_does_not_overlap_simulated_positions(monkeypatch):
     for previous, current in zip(results, results[1:]):
         assert current["entry_candle_index"] > previous["exit_candle_index"]
 
+
+
+def test_agent_pipeline_api_runs_available_stages_and_fails_closed(monkeypatch):
+    import time
+
+    def fresh_candles(symbol, interval, limit):
+        now = time.time()
+        rows = []
+        for index in range(limit):
+            price = 100.0 + index * 0.15
+            rows.append({
+                "time": now - (limit - index) * 300,
+                "open": price - 0.04,
+                "high": price + 0.2,
+                "low": price - 0.2,
+                "close": price,
+                "volume": 10.0,
+            })
+        return rows
+
+    monkeypatch.setattr(main, "candles", fresh_candles)
+    response = client.get("/api/agents/run/BTCUSDT?interval=5m&simulation_count=500")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["symbol"] == "BTCUSDT"
+    assert data["action"] == "NO TRADE"
+    assert data["status"] == "incomplete"
+    assert data["stages"][0]["stage"] == "market_data"
+    assert data["stages"][0]["status"] == "completed"
+    assert data["stages"][1]["stage"] == "market_analysis"
+    assert data["stages"][1]["status"] == "completed"
+    assert data["stages"][2]["stage"] == "research"
+    assert data["stages"][2]["status"] == "not_configured"
+
+
+def test_agent_pipeline_api_rejects_unsupported_simulation_count():
+    response = client.get("/api/agents/run/BTCUSDT?simulation_count=250")
+    assert response.status_code == 400
+    assert "100, 500, or 1000" in response.json()["detail"]
