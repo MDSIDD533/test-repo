@@ -69,7 +69,15 @@ def backtest(symbol:str,interval:str='5m',limit:int=Query(default=500,ge=100,le=
         for end in range(80,len(cs)-1):
             result=analyze_candles(cs[:end],symbol,interval)
             if result['signal']!='BUY': continue
-            entry=cs[end]['open']; stop=result['sl']; target=result['tp1']; future=cs[end+1:min(end+25,len(cs))]; exit_price=None; outcome='TIME_EXIT'
+            # The signal is calculated using candles strictly before the entry candle.
+            # Shift SL/TP by the opening gap so risk distances remain tied to the signal.
+            signal_entry=float(result['entry']); entry=float(cs[end]['open'])
+            risk=max(signal_entry-float(result['sl']), 0.0)
+            reward=max(float(result['tp1'])-signal_entry, 0.0)
+            if entry <= 0 or risk <= 0 or reward <= 0: continue
+            stop=entry-risk; target=entry+reward
+            # Include the entry candle: SL/TP can be reached after its open.
+            future=cs[end:min(end+25,len(cs))]; exit_price=None; outcome='TIME_EXIT'
             for candle in future:
                 if candle['low']<=stop: exit_price=stop; outcome='LOSS'; break
                 if candle['high']>=target: exit_price=target; outcome='WIN'; break
