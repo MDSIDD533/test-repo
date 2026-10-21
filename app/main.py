@@ -68,6 +68,24 @@ def get_candles(symbol:str,interval:str='5m',limit:int=Query(default=200,ge=35,l
     try: return {'symbol':symbol.upper(),'interval':interval,'candles':candles(symbol,interval,limit)}
     except (MarketDataError,ValueError) as exc: raise HTTPException(status_code=400,detail=str(exc))
 
+@app.get('/api/candle-signals/{symbol}')
+def candle_signals(symbol:str,interval:str='5m',limit:int=Query(default=200,ge=35,le=500)):
+    """Return historical candles colored by the same rule-based signal engine."""
+    try:
+        cs=candles(symbol,interval,limit)
+        output=[]
+        for index,candle in enumerate(cs):
+            signal='WAIT'
+            if index >= 34:
+                try:
+                    signal=analyze_candles(cs[:index+1],symbol,interval)['signal']
+                except ValueError:
+                    signal='WAIT'
+            output.append({**candle,'signal':signal})
+        return {'symbol':symbol.upper(),'interval':interval,'candles':output,'signal_colors':{'BUY':'yellow','SELL':'blue','WAIT':'normal'}}
+    except (MarketDataError,ValueError) as exc:
+        raise HTTPException(status_code=400,detail=str(exc))
+
 @app.get('/api/analyze/{symbol}')
 def analyze(symbol:str,interval:str='5m'):
     try:
