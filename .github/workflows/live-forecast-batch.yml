@@ -1,18 +1,20 @@
-name: Live two-minute forecast batch (10 trials)
+name: Live two-minute forecast batch (100 trials)
 
 on:
   push:
     paths:
       - ".github/workflows/live-forecast-batch.yml"
+      - "scripts/two_minute_forecast_test.py"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  live-forecast-batch:
+  batch-1:
+    name: Live trials 1-50
     runs-on: ubuntu-latest
-    timeout-minutes: 65
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -20,30 +22,82 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
-      - name: Run 10 live trials, starting every 5 minutes
+      - name: Run trials 1-50, 5 minutes apart
         env:
           PYTHONUNBUFFERED: "1"
         run: |
           mkdir -p forecast-batch-reports
-          for i in $(seq 1 10); do
-            echo "===== TRIAL $i / 10 START $(date -u +%Y-%m-%dT%H:%M:%SZ) ====="
-            python scripts/two_minute_forecast_test.py BTCUSDT > "forecast-batch-reports/trial-$(printf '%03d' "$i").log" 2>&1
-            code=$?
-            if [ -f two_minute_forecast_report.json ]; then
-              cp two_minute_forecast_report.json "forecast-batch-reports/trial-$(printf '%03d' "$i").json"
+          for i in $(seq 1 50); do
+            trial_start=$(date +%s)
+            printf -v label "%03d" "$i"
+            echo "===== TRIAL $i / 100 START $(date -u +%Y-%m-%dT%H:%M:%SZ) ====="
+            if python scripts/two_minute_forecast_test.py BTCUSDT > "forecast-batch-reports/trial-${label}.log" 2>&1; then
+              code=0
+            else
+              code=$?
             fi
-            echo "$code" > "forecast-batch-reports/trial-$(printf '%03d' "$i").exitcode"
-            tail -n 30 "forecast-batch-reports/trial-$(printf '%03d' "$i").log" || true
-            echo "===== TRIAL $i / 10 END exit_code=$code $(date -u +%Y-%m-%dT%H:%M:%SZ) ====="
-            if [ "$i" -lt 10 ]; then
-              # Each script waits 120 seconds; this 180-second pause makes starts 5 minutes apart.
-              sleep 180
+            if [ -f two_minute_forecast_report.json ]; then
+              cp two_minute_forecast_report.json "forecast-batch-reports/trial-${label}.json"
+            fi
+            echo "$code" > "forecast-batch-reports/trial-${label}.exitcode"
+            tail -n 25 "forecast-batch-reports/trial-${label}.log" || true
+            echo "===== TRIAL $i / 100 END exit_code=$code $(date -u +%Y-%m-%dT%H:%M:%SZ) ====="
+            if [ "$i" -lt 50 ]; then
+              elapsed=$(($(date +%s) - trial_start))
+              remaining=$((300 - elapsed))
+              if [ "$remaining" -gt 0 ]; then sleep "$remaining"; fi
             fi
           done
-      - name: Upload forecast reports
+      - name: Upload reports for trials 1-50
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: live-forecast-batch-10
+          name: forecast-trials-001-050
           path: forecast-batch-reports/
-          if-no-files-found: error
+          if-no-files-found: warn
+
+  batch-2:
+    name: Live trials 51-100
+    needs: batch-1
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Run trials 51-100, 5 minutes apart
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          mkdir -p forecast-batch-reports
+          for i in $(seq 51 100); do
+            trial_start=$(date +%s)
+            printf -v label "%03d" "$i"
+            echo "===== TRIAL $i / 100 START $(date -u +%Y-%m-%dT%H:%M:%SZ) ====="
+            if python scripts/two_minute_forecast_test.py BTCUSDT > "forecast-batch-reports/trial-${label}.log" 2>&1; then
+              code=0
+            else
+              code=$?
+            fi
+            if [ -f two_minute_forecast_report.json ]; then
+              cp two_minute_forecast_report.json "forecast-batch-reports/trial-${label}.json"
+            fi
+            echo "$code" > "forecast-batch-reports/trial-${label}.exitcode"
+            tail -n 25 "forecast-batch-reports/trial-${label}.log" || true
+            echo "===== TRIAL $i / 100 END exit_code=$code $(date -u +%Y-%m-%dT%H:%M:%SZ) ====="
+            if [ "$i" -lt 100 ]; then
+              elapsed=$(($(date +%s) - trial_start))
+              remaining=$((300 - elapsed))
+              if [ "$remaining" -gt 0 ]; then sleep "$remaining"; fi
+            fi
+          done
+      - name: Upload reports for trials 51-100
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forecast-trials-051-100
+          path: forecast-batch-reports/
+          if-no-files-found: warn
