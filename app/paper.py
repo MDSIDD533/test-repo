@@ -28,3 +28,35 @@ def open_trade(signal: dict) -> dict:
 
 def list_trades() -> list[dict]:
     with _lock: return [t.copy() for t in reversed(_trades)]
+
+def update_prices(prices: dict[str, float]) -> int:
+    """Close paper BUY trades when the latest market price reaches SL or TP1."""
+    closed = 0
+    with _lock:
+        global _equity
+        for trade in _trades:
+            if trade['status'] != 'OPEN':
+                continue
+            price = prices.get(trade['symbol'])
+            if price is None or price <= 0:
+                continue
+            exit_reason = None
+            if price <= float(trade['sl']):
+                exit_reason = 'STOP_LOSS'
+            elif price >= float(trade['tp1']):
+                exit_reason = 'TP1'
+            if exit_reason is None:
+                continue
+            exit_price = float(price)
+            pnl = (exit_price - float(trade['entry'])) * float(trade['quantity'])
+            _equity += pnl
+            trade.update({
+                'status': 'CLOSED',
+                'exit': round(exit_price, 8),
+                'pnl': round(pnl, 2),
+                'exit_reason': exit_reason,
+                'closed_at': datetime.now(timezone.utc).isoformat(),
+            })
+            closed += 1
+    return closed
+
