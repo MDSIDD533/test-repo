@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import statistics
 from pathlib import Path
 from typing import Any
@@ -43,6 +44,29 @@ def summarize_reports(directory: str | Path) -> dict[str, Any]:
     passes = sum(trial["almost_same"] is True for trial in completed)
     errors = [float(trial["absolute_price_error_pct"]) for trial in completed
               if isinstance(trial["absolute_price_error_pct"], (int, float))]
+    baseline_errors: list[float] = []
+    model_beats_baseline = 0
+    model_ties_baseline = 0
+    baseline_direction_matches: list[bool] = []
+    for trial in completed:
+        try:
+            report = json.loads((root / trial["file"]).read_text(encoding="utf-8"))
+            comparison = report.get("comparison", {})
+            start = float(comparison["baseline_price"])
+            actual = float(comparison["actual_price"])
+            predicted = float(comparison["forecast_price"])
+            if not all(math.isfinite(value) and value > 0 for value in (start, actual, predicted)):
+                continue
+            baseline_error = abs(actual - start) / start * 100.0
+            model_error = abs(predicted - actual) / start * 100.0
+            baseline_errors.append(baseline_error)
+            model_beats_baseline += model_error < baseline_error
+            model_ties_baseline += math.isclose(model_error, baseline_error, rel_tol=0.0, abs_tol=1e-12)
+            actual_return = (actual / start - 1.0) * 100.0
+            actual_direction = "UP" if actual_return > 0.005 else "DOWN" if actual_return < -0.005 else "FLAT"
+            baseline_direction_matches.append(actual_direction == "FLAT")
+        except (KeyError, TypeError, ValueError, OSError, json.JSONDecodeError):
+            continue
     exit_codes: list[int] = []
     for path in exit_files:
         try:
@@ -65,6 +89,11 @@ def summarize_reports(directory: str | Path) -> dict[str, Any]:
         "almost_same_pass_rate_pct": round(100 * passes / len(completed), 2) if completed else None,
         "mean_absolute_price_error_pct": round(statistics.mean(errors), 6) if errors else None,
         "median_absolute_price_error_pct": round(statistics.median(errors), 6) if errors else None,
+        "zero_return_baseline_mean_absolute_error_pct": round(statistics.mean(baseline_errors), 6) if baseline_errors else None,
+        "model_beats_zero_return_baseline_count": model_beats_baseline,
+        "model_ties_zero_return_baseline_count": model_ties_baseline,
+        "model_vs_baseline_comparisons": len(baseline_errors),
+        "zero_return_baseline_direction_accuracy_pct": round(100 * sum(baseline_direction_matches) / len(baseline_direction_matches), 2) if baseline_direction_matches else None,
         "failed_or_incomplete_trials": [trial["file"] for trial in trials if not trial["completed_comparison"]],
         "errors": [{"file": trial["file"], "error": trial["error"]} for trial in trials if trial["error"]],
         "interpretation": "Operational summary only. A pass is not proof of predictive skill; compare against a zero-return baseline and evaluate on unseen trials.",
