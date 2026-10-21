@@ -79,6 +79,11 @@ def backtest(symbol:str,interval:str='5m',limit:int=Query(default=500,ge=100,le=
             # Include the entry candle: SL/TP can be reached after its open.
             future=cs[end:min(end+25,len(cs))]; exit_price=None; outcome='TIME_EXIT'
             for candle in future:
+                # Model gaps at the candle open before checking intrabar touches.
+                # If both levels are touched intrabar, conservatively count the stop first.
+                candle_open=float(candle['open'])
+                if candle_open<=stop: exit_price=candle_open; outcome='LOSS'; break
+                if candle_open>=target: exit_price=candle_open; outcome='WIN'; break
                 if candle['low']<=stop: exit_price=stop; outcome='LOSS'; break
                 if candle['high']>=target: exit_price=target; outcome='WIN'; break
             if exit_price is None: exit_price=future[-1]['close'] if future else entry
