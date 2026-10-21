@@ -7,6 +7,7 @@ If Binance is blocked, BTCUSDT falls back to Coinbase BTC-USD public candles.
 from __future__ import annotations
 
 import json
+import math
 import sys
 import time
 from datetime import datetime, timezone
@@ -76,6 +77,30 @@ def fetch_experiment_candles(symbol: str, limit: int) -> tuple[list[dict[str, fl
                 f"Coinbase BTC-USD: {type(fallback_error).__name__}: {fallback_error}"
             ) from fallback_error
 
+def fetch_experiment_spot_price(symbol: str, provider: str) -> float:
+    """Fetch a spot ticker price so the 120-second horizon starts at a precise observation."""
+    if provider == "binance":
+        response = requests.get(
+            "https://api.binance.com/api/v3/ticker/price",
+            params={"symbol": symbol},
+            timeout=(5, 12),
+        )
+        response.raise_for_status()
+        price = float(response.json()["price"])
+    elif provider == "coinbase:BTC-USD" and symbol == "BTCUSDT":
+        response = requests.get(
+            "https://api.exchange.coinbase.com/products/BTC-USD/ticker",
+            headers={"Accept": "application/json", "User-Agent": "SiddTradingPro-forecast-test/1.0"},
+            timeout=(5, 12),
+        )
+        response.raise_for_status()
+        price = float(response.json()["price"])
+    else:
+        raise RuntimeError(f"No spot ticker is configured for {symbol} via {provider}")
+    if not math.isfinite(price) or price <= 0:
+        raise RuntimeError("Spot ticker returned a non-finite or non-positive price")
+    return price
+
 
 def main() -> int:
     symbol = (sys.argv[1] if len(sys.argv) > 1 else "BTCUSDT").strip().upper()
@@ -107,11 +132,14 @@ def main() -> int:
             research_error = f"{type(exc).__name__}: {exc}"
 
         forecast = make_two_minute_forecast(
-            initial, symbol, analysis.get("signal", "WAIT"), research_items
+            closed, symbol, analysis.get("signal", "WAIT"), research_items
         )
-        forecast["baseline_price"] = float(initial[-1]["close"])
+        # Freeze a spot-ticker baseline at the start, rather than an unfinished
+        # one-minute candle close, to align the 120-second measurement horizon.
+        baseline_price = fetch_experiment_spot_price(symbol, data_provider)
+        forecast["baseline_price"] = baseline_price
         forecast["forecast_price"] = round(
-            forecast["baseline_price"] * (1.0 + forecast["expected_return_pct"] / 100.0), 8
+            baseline_price * (1.0 + forecast["expected_return_pct"] / 100.0), 8
         )
         report.update({
             "research_status": research_status,
@@ -128,8 +156,9 @@ def main() -> int:
         print(json.dumps({"phase": "FORECAST_LOCKED", **report}, indent=2), flush=True)
         time.sleep(120)
 
-        final_candles, final_provider = fetch_experiment_candles(symbol, 5)
-        actual_price = float(final_candles[-1]["close"])
+        # Use a spot ticker at the end too; the newest candle close may be stale.
+        actual_price = fetch_experiment_spot_price(symbol, data_provider)
+        final_provider = data_provider
         comparison = compare_forecast(forecast, actual_price)
         report.update({
             "finished_at": utc_now(),
