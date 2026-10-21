@@ -73,3 +73,20 @@ def test_backtest_includes_entry_candle_for_target_exit(monkeypatch):
     assert data["final_balance"] > data["initial_balance"]
     assert "excludes fees and slippage" in data["warning"]
 
+def test_backtest_uses_open_price_when_target_is_gapped_over(monkeypatch):
+    gap_open = {}
+
+    def candles_with_target_gap(symbol, interval, limit):
+        rows = fake_candles(symbol, interval, limit)
+        rows[81]["open"] = rows[80]["open"] + 100.0
+        gap_open["price"] = rows[81]["open"]
+        return rows
+
+    monkeypatch.setattr(main, "candles", candles_with_target_gap)
+    response = client.post("/api/backtest/TESTUSDT?interval=5m&limit=100")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["trades"] > 0
+    assert data["results"][0]["outcome"] == "WIN"
+    assert data["results"][0]["exit"] == gap_open["price"]
+
