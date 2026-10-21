@@ -12,8 +12,9 @@ def run_market_analysis_agent(context: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Validated market_data stage is required")
     validation = market_data.get("validation")
     candles = market_data.get("candles")
-    symbol = str(market_data.get("symbol") or context.get("symbol") or "").strip().upper()
-    interval = str(market_data.get("interval") or "")
+    symbol_value = market_data.get("symbol", context.get("symbol", ""))
+    symbol = str(symbol_value).strip().upper()
+    interval = str(market_data.get("interval", "")).strip()
     if not isinstance(validation, dict) or validation.get("valid") is not True:
         raise ValueError("Market data must pass validation before analysis")
     if not isinstance(candles, list):
