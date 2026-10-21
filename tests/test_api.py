@@ -108,3 +108,12 @@ def test_paper_refresh_uses_latest_market_prices(monkeypatch):
     assert response.json()["closed_trades"] == 1
     assert seen == {"BTCUSDT": 65000.0, "ETHUSDT": 3200.0}
 
+def test_backtest_does_not_overlap_simulated_positions(monkeypatch):
+    monkeypatch.setattr(main, "candles", fake_candles)
+    response = client.post("/api/backtest/TESTUSDT?interval=5m&limit=150")
+    assert response.status_code == 200
+    results = response.json()["results"]
+    assert len(results) > 1
+    for previous, current in zip(results, results[1:]):
+        assert current["entry_candle_index"] > previous["exit_candle_index"]
+
