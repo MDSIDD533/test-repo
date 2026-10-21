@@ -148,8 +148,13 @@ def test_agent_pipeline_api_runs_available_stages_and_fails_closed(monkeypatch):
     assert data["stages"][0]["status"] == "completed"
     assert data["stages"][1]["stage"] == "market_analysis"
     assert data["stages"][1]["status"] == "completed"
-    assert data["stages"][2]["stage"] == "research"
-    assert data["stages"][2]["status"] == "not_configured"
+    # TimeTraveler is implemented and runs before Research in the current pipeline.
+    assert data["stages"][2]["stage"] == "timetraveler"
+    assert data["stages"][2]["status"] == "completed"
+    assert data["stages"][3]["stage"] == "research"
+    assert data["stages"][3]["status"] == "not_configured"
+    # The pipeline must fail closed until the required downstream agents exist.
+    assert data["action"] == "NO TRADE"
 
 
 def test_agent_pipeline_api_rejects_unsupported_simulation_count():
