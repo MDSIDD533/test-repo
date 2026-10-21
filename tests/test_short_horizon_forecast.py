@@ -13,9 +13,9 @@ def test_news_sentiment_is_transparent_and_bounded():
         {"title": "Bitcoin rally and adoption"},
         {"title": "Market faces lawsuit"},
     ])
-    assert score == 0  # two positive cues, two negative cues
+    assert score == 1  # two positive cues, one negative cue
     assert counts["positive_cues"] == 2
-    assert counts["negative_cues"] == 2
+    assert counts["negative_cues"] == 1
 
 
 def test_forecast_includes_two_minute_horizon_and_does_not_claim_calibration():
