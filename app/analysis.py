@@ -180,4 +180,3 @@ def analyze_candles(
         "score": score,
         "note": "Signal uses recent 50-candle price action with EMA warm-up from available history. Heuristic only; not guaranteed. Confirm higher timeframes before trading.",
     }
-}
