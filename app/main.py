@@ -5,6 +5,9 @@ from pydantic import BaseModel, Field
 from app.market import MarketDataError, all_24h_tickers, candles
 from app.analysis import analyze_candles
 from app import paper
+from app.agents import run_agent_pipeline
+from app.market_data_agent import make_market_data_agent
+from app.market_analysis_agent import run_market_analysis_agent
 
 ROOT = Path(__file__).resolve().parent.parent
 app = FastAPI(title='Crypto Spot Trading Analysis Agent', version='0.1.0', description='Analysis and paper trading only. Live trading is disabled.')
@@ -16,6 +19,25 @@ def dashboard(): return (ROOT / 'static' / 'index.html').read_text(encoding='utf
 
 @app.get('/api/health')
 def health(): return {'status':'ok','version':app.version,'mode':'PAPER ONLY','live_trading_enabled':False}
+
+
+@app.get('/api/agents/run/{symbol}')
+def run_agents(symbol: str, interval: str = '5m', simulation_count: int = Query(default=100)):
+    """Run implemented pipeline stages; unavailable stages keep the result NO TRADE."""
+    if simulation_count not in {100, 500, 1000}:
+        raise HTTPException(status_code=400, detail='simulation_count must be 100, 500, or 1000')
+    try:
+        market_agent = make_market_data_agent(candles, interval=interval, limit=220)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return run_agent_pipeline(
+        symbol,
+        {
+            'market_data': market_agent,
+            'market_analysis': run_market_analysis_agent,
+        },
+        simulation_count=simulation_count,
+    ).to_dict()
 
 @app.get('/api/market/summary')
 def market_summary():
