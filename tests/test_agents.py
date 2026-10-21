@@ -45,26 +45,30 @@ def test_pipeline_forces_no_trade_for_invalid_probability():
     assert report.status == "completed_no_trade"
 
 
-def test_pipeline_stops_after_missing_agent_without_inventing_results():
+def test_pipeline_records_missing_agent_and_continues_remaining_stages():
     agents = complete_agents()
     del agents["research"]
     report = run_agent_pipeline("SOLUSDT", agents)
     assert report.status == "incomplete"
     assert report.action == "NO TRADE"
-    assert [stage.stage for stage in report.stages] == ["market_data", "market_analysis", "timetraveler", "research"]
-    assert report.stages[-1].status == "not_configured"
-    assert report.stages[2].stage == "timetraveler"
-    assert report.stages[2].status == "completed"
+    assert [stage.stage for stage in report.stages] == list(PIPELINE_STAGES)
+    assert report.stages[3].status == "not_configured"
+    assert report.stages[4].status == "completed"
+    assert report.stages[5].status == "completed"
+    assert report.stages[6].status == "completed"
 
 
-def test_pipeline_stops_after_agent_exception():
+def test_pipeline_records_agent_exception_and_continues_remaining_stages():
     agents = complete_agents()
     agents["market_analysis"] = lambda context: (_ for _ in ()).throw(RuntimeError("fixture failure"))
     report = run_agent_pipeline("SOLUSDT", agents)
     assert report.status == "failed"
     assert report.action == "NO TRADE"
-    assert report.stages[-1].stage == "market_analysis"
-    assert report.stages[-1].status == "failed"
+    assert [stage.stage for stage in report.stages] == list(PIPELINE_STAGES)
+    assert report.stages[1].stage == "market_analysis"
+    assert report.stages[1].status == "failed"
+    assert report.stages[-1].stage == "report"
+    assert report.stages[-1].status == "completed"
 
 
 def test_pipeline_rejects_blank_symbol():
