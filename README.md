@@ -27,13 +27,16 @@ Open http://127.0.0.1:8000. For phone access on the same Wi-Fi, run with --host 
 
 ## Automation roadmap
 
-The planned multi-agent architecture and acceptance criteria are documented in [`docs/agent_pipeline.md`](docs/agent_pipeline.md). It defines market analysis, sourced research, calibrated prediction, risk/decision gating, the configurable TimeTraveler simulation agent, reporting, and outcome tracking. The system must be allowed to return NO TRADE; 90% confidence is never assumed without out-of-sample calibration. This is the architecture plan, not a claim that all agents have been implemented yet.
+The multi-agent architecture and acceptance criteria are documented in [`docs/agent_pipeline.md`](docs/agent_pipeline.md). Implemented building blocks now include candle validation, technical market analysis, a source-provenance/freshness-gated research agent interface, and reproducible TimeTraveler bootstrap simulations for 100, 500, or 1000 scenarios. Research requires a real provider to be injected; it does not invent headlines. TimeTraveler outputs scenario distributions, not calibrated win probabilities.
+
+The partial pipeline endpoint `GET /api/agents/run/{symbol}?interval=5m&simulation_count=100` currently runs the market-data and market-analysis stages. It intentionally stops at the unconfigured research stage and returns `NO TRADE`. Prediction calibration, risk/decision, end-to-end TimeTraveler orchestration, reporting, and outcome tracking are not yet connected. The system must be allowed to return NO TRADE; 90% confidence is never assumed without out-of-sample calibration.
 
 ## API
 - GET /api/health
 - GET /api/market/summary
 - GET /api/scanner
 - GET /api/analyze/{symbol}
+- GET /api/agents/run/{symbol} (partial pipeline; fails closed to NO TRADE)
 - GET /api/candles/{symbol}
 - GET /api/paper/account
 - GET /api/paper/trades
