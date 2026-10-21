@@ -1,0 +1,57 @@
+from fastapi.testclient import TestClient
+
+from app import main
+
+client = TestClient(main.app)
+
+
+def fake_candles(symbol, interval, limit):
+    price = 100.0
+    rows = []
+    for i in range(limit):
+        price += 0.15
+        rows.append({
+            "time": float(i),
+            "open": price - 0.04,
+            "high": price + 0.2,
+            "low": price - 0.2,
+            "close": price,
+            "volume": 10.0,
+        })
+    return rows
+
+
+def test_health_keeps_live_trading_disabled():
+    response = client.get("/api/health")
+    assert response.status_code == 200
+    assert response.json()["mode"] == "PAPER ONLY"
+    assert response.json()["live_trading_enabled"] is False
+
+
+def test_analyze_endpoint_returns_signal_and_multi_timeframe(monkeypatch):
+    monkeypatch.setattr(main, "candles", fake_candles)
+    response = client.get("/api/analyze/TESTUSDT?interval=5m")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["symbol"] == "TESTUSDT"
+    assert data["signal"] in {"BUY", "SELL", "WAIT"}
+    assert 50 <= data["confidence"] <= 90
+    assert {"entry", "tp1", "tp2", "tp3", "sl", "reasons"} <= data.keys()
+    assert data["multi_timeframe"] == {"15m": data["signal"], "1h": data["signal"]}
+    assert isinstance(data["confirmed"], bool)
+
+
+def test_candles_endpoint_returns_requested_window(monkeypatch):
+    monkeypatch.setattr(main, "candles", fake_candles)
+    response = client.get("/api/candles/TESTUSDT?interval=5m&limit=50")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["symbol"] == "TESTUSDT"
+    assert len(data["candles"]) == 50
+
+
+def test_analyze_endpoint_reports_invalid_history(monkeypatch):
+    monkeypatch.setattr(main, "candles", lambda *args: fake_candles(*args)[:20])
+    response = client.get("/api/analyze/TESTUSDT?interval=5m")
+    assert response.status_code == 400
+    assert "35 candles" in response.json()["detail"]
