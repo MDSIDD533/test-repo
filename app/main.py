@@ -9,6 +9,11 @@ from app.agents import run_agent_pipeline
 from app.market_data_agent import make_market_data_agent
 from app.market_analysis_agent import run_market_analysis_agent
 from app.timetraveler_agent import run_timetraveler_agent
+from app.research_agent import make_research_agent
+from app.news_provider import fetch_crypto_news
+from app.prediction_agent import run_prediction_agent
+from app.risk_decision_agent import run_risk_decision_agent
+from app.report_agent import run_report_agent
 
 ROOT = Path(__file__).resolve().parent.parent
 app = FastAPI(title='Crypto Spot Trading Analysis Agent', version='0.1.0', description='Analysis and paper trading only. Live trading is disabled.')
@@ -32,6 +37,7 @@ def run_agents(symbol: str, interval: str = '5m', simulation_count: int = Query(
         raise HTTPException(status_code=400, detail='simulation_count must be 100, 500, or 1000')
     try:
         market_agent = make_market_data_agent(candles, interval=interval, limit=220)
+        research_agent = make_research_agent(fetch_crypto_news)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return run_agent_pipeline(
@@ -40,6 +46,10 @@ def run_agents(symbol: str, interval: str = '5m', simulation_count: int = Query(
             'market_data': market_agent,
             'market_analysis': run_market_analysis_agent,
             'timetraveler': run_timetraveler_agent,
+            'research': research_agent,
+            'prediction': run_prediction_agent,
+            'risk_decision': run_risk_decision_agent,
+            'report': run_report_agent,
         },
         simulation_count=simulation_count,
     ).to_dict()
