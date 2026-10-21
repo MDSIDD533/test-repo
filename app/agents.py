@@ -72,6 +72,7 @@ def run_agent_pipeline(
     *,
     run_id: str | None = None,
     as_of: str | None = None,
+    simulation_count: int = 100,
 ) -> PipelineReport:
     """Run injected stages in order; stop safely when a stage is missing/fails.
 
@@ -79,12 +80,15 @@ def run_agent_pipeline(
     simulation outcomes when domain agents have not yet been implemented.
     """
     normalized_symbol = symbol.strip().upper()
+    if simulation_count not in {100, 500, 1000}:
+        raise ValueError("simulation_count must be one of 100, 500, or 1000")
     run_id = run_id or str(uuid.uuid4())
     as_of = as_of or _utc_now()
     context: dict[str, Any] = {
         "run_id": run_id,
         "symbol": normalized_symbol,
         "as_of": as_of,
+        "requested_simulations": simulation_count,
     }
     results: list[StageResult] = []
     warnings: list[str] = []
