@@ -49,9 +49,9 @@ def test_invalid_candle_data_is_rejected(mutation, message):
 
 
 def test_stale_candles_are_rejected():
-    rows = sample_candles(now=10_000.0)
+    rows = sample_candles(now=100_000.0)
     with pytest.raises(CandleValidationError, match="stale"):
-        validate_candles(rows, "5m", now=100_000.0)
+        validate_candles(rows, "5m", now=200_000.0)
 
 
 def test_future_candles_are_rejected():
