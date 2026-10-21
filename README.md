@@ -33,8 +33,9 @@ Open http://127.0.0.1:8000. For phone access on the same Wi-Fi, run with --host 
 - GET /api/candles/{symbol}
 - GET /api/paper/account
 - GET /api/paper/trades
+- POST /api/paper/refresh
 - POST /api/paper/open
 - POST /api/backtest/{symbol}
 
 ## Known limitations
-All eligible USDT pairs are discovered, but detailed candle analysis is limited to a configurable top-volume subset to respect exchange API rate limits. Paper trades are currently in memory and reset on restart. Backtesting is simplified and excludes fees and slippage. Persistent storage, proper alert delivery, news/fundamentals, AI chat and production deployment hardening are future phases.
+All eligible USDT pairs are discovered, but detailed candle analysis is limited to a configurable top-volume subset to respect exchange API rate limits. Paper trades are currently in memory and reset on restart. Open paper BUY trades are checked against the latest ticker price when the dashboard refreshes (about every 15 seconds); fast price moves between refreshes can be missed, and this is not an exchange-native stop order. Backtesting allows one simulated position at a time and models candle-open gaps, but excludes fees, slippage, and intrabar tick data, so results are approximate. Persistent storage, proper alert delivery, news/fundamentals, AI chat and production deployment hardening are future phases.
