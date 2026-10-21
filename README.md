@@ -25,6 +25,10 @@ Python 3.11+ recommended.
 
 Open http://127.0.0.1:8000. For phone access on the same Wi-Fi, run with --host 0.0.0.0 and visit the computer's LAN IP on the phone. Public hosting needs HTTPS and deployment configuration.
 
+## Automation roadmap
+
+The planned multi-agent architecture and acceptance criteria are documented in [`docs/agent_pipeline.md`](docs/agent_pipeline.md). It defines market analysis, sourced research, calibrated prediction, risk/decision gating, the configurable TimeTraveler simulation agent, reporting, and outcome tracking. The system must be allowed to return NO TRADE; 90% confidence is never assumed without out-of-sample calibration. This is the architecture plan, not a claim that all agents have been implemented yet.
+
 ## API
 - GET /api/health
 - GET /api/market/summary
