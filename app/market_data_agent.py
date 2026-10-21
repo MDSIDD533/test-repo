@@ -52,6 +52,8 @@ def validate_candles(
                 raise CandleValidationError(f"Candle {index} has non-finite {field}")
         if values["time"] < 0:
             raise CandleValidationError(f"Candle {index} has a negative timestamp")
+        if values["time"] > current_time + INTERVAL_SECONDS[interval]:
+            raise CandleValidationError("Candle timestamp is too far in the future")
         if any(values[field] <= 0 for field in PRICE_FIELDS):
             raise CandleValidationError(f"Candle {index} has a non-positive price")
         if values["volume"] < 0:
