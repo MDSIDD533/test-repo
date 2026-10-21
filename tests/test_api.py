@@ -90,3 +90,21 @@ def test_backtest_uses_open_price_when_target_is_gapped_over(monkeypatch):
     assert data["results"][0]["outcome"] == "WIN"
     assert data["results"][0]["exit"] == gap_open["price"]
 
+def test_paper_refresh_uses_latest_market_prices(monkeypatch):
+    monkeypatch.setattr(main, "all_24h_tickers", lambda: [
+        {"symbol": "BTCUSDT", "price": 65000.0},
+        {"symbol": "ETHUSDT", "price": 3200.0},
+    ])
+    seen = {}
+    def fake_update_prices(prices):
+        seen.update(prices)
+        return 1
+    monkeypatch.setattr(main.paper, "update_prices", fake_update_prices)
+
+    response = client.post("/api/paper/refresh")
+
+    assert response.status_code == 200
+    assert response.json()["updated"] is True
+    assert response.json()["closed_trades"] == 1
+    assert seen == {"BTCUSDT": 65000.0, "ETHUSDT": 3200.0}
+
