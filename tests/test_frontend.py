@@ -20,4 +20,14 @@ def test_dashboard_inline_javascript_parses():
     with tempfile.NamedTemporaryFile(mode="w", suffix=".js", encoding="utf-8") as handle:
         handle.write("\n".join(scripts))
         handle.flush()
-        subprocess.run([node, "--check", handle.name], check=True, capture_output=True, text=True)
+        checked = subprocess.run([node, "--check", handle.name], capture_output=True, text=True)
+        if checked.returncode:
+            error_lines = checked.stderr.splitlines()
+            source_line = error_lines[1] if len(error_lines) > 1 else ""
+            caret_line = error_lines[2] if len(error_lines) > 2 else ""
+            caret = caret_line.find("^")
+            context = source_line[max(0, caret - 100):caret + 100] if caret >= 0 else source_line[:200]
+            raise AssertionError(
+                "Node.js syntax check failed. Context near parser location: "
+                + context + "\\n" + checked.stderr[-500:]
+            )
