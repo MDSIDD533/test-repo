@@ -51,8 +51,10 @@ def test_pipeline_stops_after_missing_agent_without_inventing_results():
     report = run_agent_pipeline("SOLUSDT", agents)
     assert report.status == "incomplete"
     assert report.action == "NO TRADE"
-    assert [stage.stage for stage in report.stages] == ["market_data", "market_analysis", "research"]
+    assert [stage.stage for stage in report.stages] == ["market_data", "market_analysis", "timetraveler", "research"]
     assert report.stages[-1].status == "not_configured"
+    assert report.stages[2].stage == "timetraveler"
+    assert report.stages[2].status == "completed"
 
 
 def test_pipeline_stops_after_agent_exception():
