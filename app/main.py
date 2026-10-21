@@ -17,6 +17,9 @@ class PaperOpenRequest(BaseModel):
 @app.get('/', response_class=HTMLResponse)
 def dashboard(): return (ROOT / 'static' / 'index.html').read_text(encoding='utf-8')
 
+@app.get('/chart', response_class=HTMLResponse)
+def full_chart(): return (ROOT / 'static' / 'chart.html').read_text(encoding='utf-8')
+
 @app.get('/api/health')
 def health(): return {'status':'ok','version':app.version,'mode':'PAPER ONLY','live_trading_enabled':False}
 
