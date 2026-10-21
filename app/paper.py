@@ -20,9 +20,18 @@ def open_trade(signal: dict) -> dict:
     risk_per_unit = entry - stop
     if entry <= 0 or risk_per_unit <= 0: raise ValueError('Invalid entry or stop-loss')
     with _lock:
-        risk_budget = _equity * RISK_PERCENT / 100
-        qty = risk_budget / risk_per_unit
-        trade = {'id':len(_trades)+1,'symbol':signal['symbol'],'entry':entry,'quantity':round(qty,8),'sl':stop,'tp1':signal['tp1'],'tp2':signal['tp2'],'tp3':signal['tp3'],'status':'OPEN','opened_at':datetime.now(timezone.utc).isoformat(),'mode':'PAPER'}
+        invested = sum(
+            float(t['entry']) * float(t['quantity'])
+            for t in _trades if t['status'] == 'OPEN'
+        )
+        available = max(_equity - invested, 0.0)
+        if available <= 0:
+            raise ValueError('Insufficient virtual balance for another spot position')
+        risk_budget = available * RISK_PERCENT / 100
+        qty = round(min(risk_budget / risk_per_unit, available / entry), 8)
+        if qty <= 0:
+            raise ValueError('Calculated paper position size is too small')
+        trade = {'id':len(_trades)+1,'symbol':signal['symbol'],'entry':entry,'quantity':qty,'sl':stop,'tp1':signal['tp1'],'tp2':signal['tp2'],'tp3':signal['tp3'],'status':'OPEN','opened_at':datetime.now(timezone.utc).isoformat(),'mode':'PAPER'}
         _trades.append(trade)
         return trade.copy()
 
