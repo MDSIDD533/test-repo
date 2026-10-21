@@ -55,3 +55,21 @@ def test_analyze_endpoint_reports_invalid_history(monkeypatch):
     response = client.get("/api/analyze/TESTUSDT?interval=5m")
     assert response.status_code == 400
     assert "35 candles" in response.json()["detail"]
+
+def test_backtest_includes_entry_candle_for_target_exit(monkeypatch):
+    def candles_with_entry_spike(symbol, interval, limit):
+        rows = fake_candles(symbol, interval, limit)
+        # The first backtest entry occurs at index 80. Simulate TP1 being
+        # reached after that candle opens, rather than only on later candles.
+        rows[80]["high"] = rows[80]["open"] + 100.0
+        return rows
+
+    monkeypatch.setattr(main, "candles", candles_with_entry_spike)
+    response = client.post("/api/backtest/TESTUSDT?interval=5m&limit=100")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["trades"] > 0
+    assert data["results"][0]["outcome"] == "WIN"
+    assert data["final_balance"] > data["initial_balance"]
+    assert "excludes fees and slippage" in data["warning"]
+
