@@ -21,6 +21,7 @@ on:
       - "app/market.py"
       - "app/main.py"
       - "app/news_provider.py"
+      - "app/short_horizon_forecast.py"
   workflow_dispatch:
 
 permissions:
