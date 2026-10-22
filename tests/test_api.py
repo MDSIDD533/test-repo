@@ -171,3 +171,16 @@ def test_agent_pipeline_api_rejects_unsupported_simulation_count():
     response = client.get("/api/agents/run/BTCUSDT?simulation_count=250")
     assert response.status_code == 400
     assert "100, 500, or 1000" in response.json()["detail"]
+
+
+def test_chart_pages_and_core_script_are_served():
+    chart = client.get("/chart")
+    assert chart.status_code == 200
+    assert "chart-core.js" in chart.text
+    assert "Full Market Chart" in chart.text
+
+    core = client.get("/chart-core.js")
+    assert core.status_code == 200
+    assert "javascript" in core.headers["content-type"]
+    assert "class LiveStream" in core.text
+    assert "normalizeKline" in core.text

@@ -1,23 +1,432 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1220"><title>Full Chart · Crypto Spot Analysis Agent</title>
 <style>
-:root{color-scheme:dark;--bg:#0b1220;--panel:#111c2e;--line:#263750;--text:#e8effa;--muted:#91a4bd;--green:#36d399;--red:#fb7185;--yellow:#facc15;--blue:#7dd3fc}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,sans-serif}header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 20px;border-bottom:1px solid var(--line)}h1{font-size:20px;margin:0}a{color:var(--blue);text-decoration:none}.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}select,input,button{background:#17263b;color:var(--text);border:1px solid #344964;border-radius:8px;padding:9px 11px;font:inherit}button{cursor:pointer}main{max-width:1800px;margin:auto;padding:14px;display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:14px}.panel{min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}.chart-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}.muted{color:var(--muted)}.live-badge{display:inline-flex;align-items:center;gap:6px;border:1px solid #176b50;background:#0c3028;color:#6ee7b7;border-radius:999px;padding:4px 9px;font-size:12px;font-weight:700}.live-dot{width:7px;height:7px;border-radius:50%;background:#36d399;display:inline-block}#chart{height:calc(100vh - 190px);min-height:420px;width:100%}.status{padding:7px 0;color:var(--muted)}.error{color:var(--red)}.kv{display:grid;grid-template-columns:1fr 1fr;gap:8px}.kv div{background:#0d1727;padding:9px;border-radius:8px;overflow-wrap:anywhere}.kv small{display:block;color:var(--muted)}.signal{font-weight:700;font-size:20px}.buy{color:var(--green)}.sell{color:var(--red)}.wait{color:var(--yellow)}.levels{margin-top:12px}.levels div{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}.note{font-size:12px;color:var(--muted);margin-top:12px}@media(max-width:850px){main{grid-template-columns:1fr}#chart{height:65vh;min-height:360px}}
+:root{color-scheme:dark;--bg:#0b1220;--panel:#111c2e;--line:#263750;--text:#e8effa;--muted:#91a4bd;--green:#36d399;--red:#fb7185;--yellow:#facc15;--blue:#7dd3fc}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,sans-serif}header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 20px;border-bottom:1px solid var(--line)}h1{font-size:20px;margin:0}a{color:var(--blue);text-decoration:none}.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}select,input,button{background:#17263b;color:var(--text);border:1px solid #344964;border-radius:8px;padding:9px 11px;font:inherit}button{cursor:pointer}main{max-width:1800px;margin:auto;padding:14px;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px}.panel{min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}.chart-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}.muted{color:var(--muted)}.badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 9px;font-size:12px;font-weight:700;border:1px solid var(--line);background:#0d1727;color:var(--muted)}.badge.safe{border-color:#176b50;background:#0c3028;color:#6ee7b7}.badge.warn{border-color:#7a5c14;background:#31260c;color:#facc15}.badge.error{border-color:#7f2c3b;background:#34131a;color:#fda4af}.dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}#chart{height:calc(100vh - 300px);min-height:420px;width:100%}.status{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 0;color:var(--muted);min-height:34px}.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:8px 0}.meta div{background:#0d1727;padding:9px;border-radius:8px;overflow-wrap:anywhere}.meta small{display:block;color:var(--muted)}.signal{font-weight:700;font-size:20px}.buy{color:var(--green)}.sell{color:var(--red)}.wait{color:var(--yellow)}.levels{margin-top:12px}.levels div{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}.kv{display:grid;grid-template-columns:1fr 1fr;gap:8px}.kv div{background:#0d1727;padding:9px;border-radius:8px;overflow-wrap:anywhere}.kv small{display:block;color:var(--muted)}.note{font-size:12px;color:var(--muted);margin-top:12px}.error{color:var(--red)}.warnText{color:var(--yellow)}@media(max-width:850px){main{grid-template-columns:1fr}#chart{height:65vh;min-height:360px}}
 </style>
 <script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js"></script></head>
 <body>
-<header><div><h1>◈ Full Market Chart</h1><div class="muted">Interactive candles · indicators · spot analysis · auto-refresh every 15 seconds</div></div><div class="controls"><a href="/">← Dashboard</a><input id="symbol" value="BTCUSDT" aria-label="Coin symbol" list="coins"><datalist id="coins"><option>BTCUSDT</option><option>ETHUSDT</option><option>BNBUSDT</option><option>SOLUSDT</option><option>XRPUSDT</option><option>DOGEUSDT</option><option>ADAUSDT</option><option>LINKUSDT</option></datalist><select id="interval" aria-label="Timeframe"><option>1m</option><option>3m</option><option selected>5m</option><option>15m</option><option>30m</option><option>1h</option><option>2h</option><option>4h</option><option>1d</option></select><select id="count" aria-label="Candles"><option value="100">100 candles</option><option value="200" selected>200 candles</option><option value="500">500 candles</option></select><button id="load">Refresh now</button><button id="full">Fullscreen</button></div></header>
-<main><section class="panel"><div class="chart-head"><b id="chartTitle">BTCUSDT · 5m</b><div class="controls"><label><input type="checkbox" id="ema" checked> EMA 9/20/50/200</label><label><input type="checkbox" id="levels" checked> Entry/TP/SL</label></div></div><div id="status" class="status"><span class="live-badge"><span class="live-dot"></span>LIVE UPDATES ON</span> Connecting to market data…</div><div id="chart"></div><div class="note">Mouse wheel to zoom; drag to pan. EMA overlays and signal levels are optional. If fresh Binance data is unavailable, the chart reports the error rather than pretending old candles are live.</div></section>
+<header><div><h1>◈ Full Market Chart</h1><div class="muted">Interactive candles · indicators · live stream with REST fallback</div></div><div class="controls"><a href="/">← Dashboard</a><input id="symbol" value="BTCUSDT" aria-label="Coin symbol" list="coins" autocomplete="off"><datalist id="coins"><option>BTCUSDT</option><option>ETHUSDT</option><option>BNBUSDT</option><option>SOLUSDT</option><option>XRPUSDT</option><option>DOGEUSDT</option><option>ADAUSDT</option><option>LINKUSDT</option></datalist><select id="interval" aria-label="Timeframe"><option value="1m">1m</option><option value="3m">3m</option><option value="5m" selected>5m</option><option value="15m">15m</option><option value="30m">30m</option><option value="1h">1h</option><option value="2h">2h</option><option value="4h">4h</option><option value="1d">1d</option></select><select id="count" aria-label="Candles"><option value="100">100 candles</option><option value="200" selected>200 candles</option><option value="500">500 candles</option></select><button id="load" type="button">Refresh now</button><button id="full" type="button">Fullscreen</button></div></header>
+<main><section class="panel"><div class="chart-head"><b id="chartTitle">BTCUSDT · 5m</b><div class="controls"><span id="candleState" class="badge">WAITING</span><label><input type="checkbox" id="ema" checked> EMA 9/20/50/200</label><label><input type="checkbox" id="levels" checked> Entry/TP/SL</label></div></div><div id="status" class="status" role="status" aria-live="polite"><span id="connBadge" class="badge">CONNECTING</span><span id="statusText">Loading market data…</span></div><div class="meta"><div><small>Selected symbol</small><b id="metaSymbol">BTCUSDT</b></div><div><small>Selected timeframe</small><b id="metaInterval">5m</b></div><div><small>Current price</small><b id="currentPrice">—</b></div><div><small>Candles loaded</small><b id="candleCount">—</b></div><div><small>Last successful update</small><b id="lastUpdate">—</b></div><div><small>Data source</small><b id="dataSource">—</b></div></div><div id="chart"></div><div class="note">The live stream updates the current candle in place; completed candles and signal markers are never rebuilt from tick data. If the stream drops, the chart reconnects with bounded backoff and keeps a REST refresh every 15 seconds. If data is stale, the badge says so instead of showing LIVE.</div></section>
 <aside class="panel"><h2 style="margin-top:0">Signal analysis</h2><div id="signal" class="muted">Loading…</div><div id="kv" class="kv" style="margin-top:12px"></div><div id="levelsBox" class="levels"></div><p class="note">Heuristic signals are not guaranteed or calibrated profit probabilities. This page cannot place live orders.</p></aside></main>
+<script src="/chart-core.js"></script>
 <script>
-const $=id=>document.getElementById(id);let chart=null,candleSeries=null,emaSeries=[],levelSeries=[],lastCandles=[],lastAnalysis=null,chartLoading=false,lastUpdatedAt=null;
-const palette={9:'#facc15',20:'#7dd3fc',50:'#c084fc',200:'#fb7185'};
-async function api(path){const r=await fetch(path);let d;try{d=await r.json()}catch{throw Error('Server returned an unreadable response')}if(!r.ok)throw Error(d.detail||'Request failed');return d}
-function initChart(){if(chart)return;chart=LightweightCharts.createChart($('chart'),{layout:{background:{color:'#111c2e'},textColor:'#cbd5e1'},grid:{vertLines:{color:'#1d2b40'},horzLines:{color:'#1d2b40'}},rightPriceScale:{borderColor:'#344964'},timeScale:{borderColor:'#344964',timeVisible:true,secondsVisible:false},crosshair:{mode:LightweightCharts.CrosshairMode.Normal},handleScroll:true,handleScale:true});candleSeries=chart.addCandlestickSeries({upColor:'#36d399',downColor:'#fb7185',borderUpColor:'#36d399',borderDownColor:'#fb7185',wickUpColor:'#36d399',wickDownColor:'#fb7185'});for(const p of [9,20,50,200])emaSeries.push(chart.addLineSeries({color:palette[p],lineWidth:1,priceLineVisible:false,lastValueVisible:false}));new ResizeObserver(()=>chart.applyOptions({width:$('chart').clientWidth,height:$('chart').clientHeight})).observe($('chart'))}
-function ema(data,period){let out=[],alpha=2/(period+1),v=data[0]?.close;if(!data.length)return out;out.push({time:data[0].time,value:v});for(let i=1;i<data.length;i++){v=data[i].close*alpha+v*(1-alpha);out.push({time:data[i].time,value:v})}return out}
-function setStatus(msg,isError=false){$('status').textContent=msg;$('status').className='status'+(isError?' error':'')}
-function showAnalysis(d){lastAnalysis=d;const sig=d.signal||'WAIT';$('signal').innerHTML='<div class="signal '+sig.toLowerCase()+'">'+sig+' · '+d.confidence+'% heuristic</div><p class="muted">RSI '+d.rsi+' · MACD '+d.macd+'</p><p>'+d.structure+'</p><ul>'+d.reasons.map(x=>'<li>'+x+'</li>').join('')+'</ul><p class="muted">'+d.multi_timeframe['15m']+' (15m) / '+d.multi_timeframe['1h']+' (1h)</p>';$('kv').innerHTML=[['Entry',d.entry],['Stop loss',d.sl],['TP1',d.tp1],['TP2',d.tp2],['TP3',d.tp3],['Support',d.support_50],['Resistance',d.resistance_50]].map(([k,v])=>'<div><small>'+k+'</small><b>'+Number(v).toLocaleString(undefined,{maximumFractionDigits:8})+'</b></div>').join('');}
-function updateOverlays(){if(!lastCandles.length)return;const showEma=$('ema').checked;[9,20,50,200].forEach((p,i)=>emaSeries[i].setData(showEma?ema(lastCandles,p):[]));levelSeries.forEach(s=>chart.removeSeries(s));levelSeries=[];if($('levels').checked&&lastAnalysis){const d=lastAnalysis;for(const [name,val,color] of [['Entry',d.entry,'#7dd3fc'],['SL',d.sl,'#fb7185'],['TP1',d.tp1,'#36d399'],['TP2',d.tp2,'#36d399'],['TP3',d.tp3,'#36d399']]){const s=chart.addLineSeries({color,lineWidth:1,lineStyle:LightweightCharts.LineStyle.Dashed,priceLineVisible:false,lastValueVisible:true,title:name});s.setData([{time:lastCandles[0].time,value:Number(val)},{time:lastCandles[lastCandles.length-1].time,value:Number(val)}]);levelSeries.push(s)}}}
-let liveSocket=null,liveSocketKey='';function connectLiveStream(symbol,interval){const key=symbol+'@'+interval;if(key===liveSocketKey&&liveSocket&&liveSocket.readyState<=1)return;liveSocketKey=key;if(liveSocket){try{liveSocket.close()}catch{}}const ws=new WebSocket('wss://stream.binance.com:9443/ws/'+symbol.toLowerCase()+'@kline_'+interval);liveSocket=ws;ws.onopen=()=>{if(liveSocket===ws)setStatus('LIVE STREAM CONNECTED · '+symbol+' · '+interval+' candles updating in real time')};ws.onmessage=(event)=>{if(liveSocket!==ws)return;try{const msg=JSON.parse(event.data),k=msg.k;if(!k)return;const time=Math.floor(Number(k.t)/1000),open=Number(k.o),high=Number(k.h),low=Number(k.l),close=Number(k.c);if(![time,open,high,low,close].every(Number.isFinite))return;let candle=lastCandles.find(c=>c.time===time);const previousSignal=candle?.signal||'WAIT';const color=previousSignal==='BUY'?'#facc15':previousSignal==='SELL'?'#60a5fa':(close>=open?'#36d399':'#fb7185');const next={time,open,high,low,close,color,borderColor:color,wickColor:color,signal:previousSignal};if(candle){Object.assign(candle,next)}else{if(lastCandles.length&&time<lastCandles[lastCandles.length-1].time)return;lastCandles.push(next);while(lastCandles.length>Number($('count').value))lastCandles.shift()}candleSeries.update(next);$('chartTitle').textContent=symbol+' · '+interval+' · '+close.toLocaleString(undefined,{maximumFractionDigits:8});setStatus('LIVE · '+symbol+' · '+interval+' · price '+close.toLocaleString(undefined,{maximumFractionDigits:8})+' · '+new Date().toLocaleTimeString())}catch(e){console.error('Live candle update failed',e)}};ws.onerror=()=>{if(liveSocket===ws)setStatus('Live stream unavailable; automatic candle refresh is active',true)};ws.onclose=()=>{if(liveSocket===ws){setStatus('Live stream disconnected; automatic refresh is active',true);liveSocket=null;liveSocketKey=''}}}
-async function load(autoRefresh=false){if(chartLoading)return;chartLoading=true;const symbol=$('symbol').value.trim().toUpperCase(),interval=$('interval').value,limit=$('count').value;if(!/^[A-Z0-9]{3,30}$/.test(symbol)){chartLoading=false;setStatus('Enter a valid symbol such as BTCUSDT.',true);return}if(!window.LightweightCharts){chartLoading=false;setStatus('Chart library did not load. Check internet access and refresh.',true);return}initChart();$('chartTitle').textContent=symbol+' · '+interval;if(!autoRefresh){setStatus('Fetching fresh Binance candles and signal…');$('signal').textContent='Loading analysis…'}try{const pair=encodeURIComponent(symbol);const [cd,ad]=await Promise.all([api('/api/candle-signals/'+pair+'?interval='+interval+'&limit='+limit),api('/api/analyze/'+pair+'?interval='+interval)]);const cs=cd.candles.map(c=>{const signal=c.signal||'WAIT';const color=signal==='BUY'?'#facc15':signal==='SELL'?'#60a5fa':(c.close>=c.open?'#36d399':'#fb7185');return {time:Math.floor(c.time),open:c.open,high:c.high,low:c.low,close:c.close,color,borderColor:color,wickColor:color,signal}});if(cs.length<35)throw Error('Not enough candles returned to render a reliable chart');lastCandles=cs;candleSeries.setData(cs);connectLiveStream(symbol,interval);candleSeries.setMarkers(cs.filter((c,i)=>['BUY','SELL'].includes(c.signal)&&(i===0||cs[i-1].signal!==c.signal)).map(c=>({time:c.time,position:c.signal==='BUY'?'belowBar':'aboveBar',color:c.signal==='BUY'?'#facc15':'#60a5fa',shape:c.signal==='BUY'?'arrowUp':'arrowDown',text:c.signal})));if(!autoRefresh)chart.timeScale().fitContent();showAnalysis(ad);updateOverlays();lastUpdatedAt=new Date();setStatus('LIVE · '+cs.length+' candles · '+symbol+' · '+interval+' · last updated '+lastUpdatedAt.toLocaleTimeString());}catch(e){setStatus('Market data unavailable: '+e.message,true);if(!autoRefresh){$('signal').innerHTML='<span class="error">No fresh analysis available.</span>';$('kv').innerHTML='';$('levelsBox').innerHTML='';}}finally{chartLoading=false;}}
-$('load').onclick=()=>load(false);$('ema').onchange=updateOverlays;$('levels').onchange=updateOverlays;$('interval').onchange=()=>load(false);$('count').onchange=()=>load(false);$('symbol').addEventListener('keydown',e=>{if(e.key==='Enter')load()});$('full').onclick=async()=>{try{await $('chart').requestFullscreen()}catch{}};load(false);setInterval(()=>{if(!document.hidden)load(true)},15000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)load(true)});
-</script></body></html>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const Core = window.ChartCore;
+  const STALE_AFTER_MS = 30000;
+  const AUTO_REFRESH_MS = 15000;
+  const MAX_CANDLES = 500;
+  const palette = { 9: '#facc15', 20: '#7dd3fc', 50: '#c084fc', 200: '#fb7185' };
+  const badgeLabels = {
+    connecting: 'CONNECTING',
+    connected: 'STREAM OPEN',
+    live: 'LIVE',
+    reconnecting: 'RECONNECTING',
+    rest: 'REST ONLY',
+    stale: 'STALE',
+    offline: 'OFFLINE',
+    error: 'DATA ERROR',
+    stopped: 'PAUSED',
+  };
+  const badgeClasses = {
+    connecting: 'warn',
+    connected: 'warn',
+    live: 'safe',
+    reconnecting: 'warn',
+    rest: 'warn',
+    stale: 'error',
+    offline: 'error',
+    error: 'error',
+    stopped: '',
+  };
+  const state = {
+    chart: null,
+    candleSeries: null,
+    emaSeries: [],
+    levelSeries: [],
+    priceLine: null,
+    candles: [],
+    analysis: null,
+    inflight: null,
+    loadSeq: 0,
+    renderedKey: null,
+    hasFit: false,
+    stream: null,
+    lastUpdate: null,
+    connection: 'idle',
+    warnings: [],
+  };
+
+  if (!Core) {
+    document.getElementById('statusText').textContent = 'Chart core failed to load; refresh the page.';
+    return;
+  }
+
+  function api(path, options) {
+    const settings = Object.assign({}, options || {});
+    return fetch(path, settings).then(async (response) => {
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (error) {
+        throw new Error('Server returned an unreadable response');
+      }
+      if (!response.ok) throw new Error(data && data.detail ? data.detail : 'Request failed');
+      return data;
+    });
+  }
+
+  function money(value) {
+    if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+    return Number(value).toLocaleString(undefined, { maximumFractionDigits: 8 });
+  }
+
+  function setConnection(kind, message) {
+    state.connection = kind;
+    const badge = $('connBadge');
+    badge.textContent = badgeLabels[kind] || String(kind).toUpperCase();
+    badge.className = 'badge ' + (badgeClasses[kind] || '');
+    $('statusText').textContent = message || '';
+  }
+
+  function setLastUpdate(when) {
+    state.lastUpdate = when instanceof Date ? when : new Date(when);
+    $('lastUpdate').textContent = state.lastUpdate.toLocaleString();
+  }
+
+  function setWarnings(warnings) {
+    state.warnings = Array.isArray(warnings) ? warnings.slice() : [];
+    if (state.warnings.length) {
+      setConnection(state.connection === 'live' ? 'live' : 'rest', state.warnings[0]);
+    }
+  }
+
+  function initChart() {
+    if (state.chart) return;
+    if (!window.LightweightCharts) {
+      throw new Error('Chart library did not load. Check internet access and refresh.');
+    }
+    state.chart = LightweightCharts.createChart($('chart'), {
+      layout: { background: { color: '#111c2e' }, textColor: '#cbd5e1' },
+      grid: { vertLines: { color: '#1d2b40' }, horzLines: { color: '#1d2b40' } },
+      rightPriceScale: { borderColor: '#344964' },
+      timeScale: { borderColor: '#344964', timeVisible: true, secondsVisible: false },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      handleScroll: true,
+      handleScale: true,
+    });
+    state.candleSeries = state.chart.addCandlestickSeries({
+      upColor: '#36d399', downColor: '#fb7185',
+      borderUpColor: '#36d399', borderDownColor: '#fb7185',
+      wickUpColor: '#36d399', wickDownColor: '#fb7185',
+    });
+    for (const period of [9, 20, 50, 200]) {
+      state.emaSeries.push(state.chart.addLineSeries({
+        color: palette[period], lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
+      }));
+    }
+    new ResizeObserver(() => {
+      state.chart.applyOptions({ width: $('chart').clientWidth, height: $('chart').clientHeight });
+    }).observe($('chart'));
+  }
+
+  function updateTitle(symbol, interval, price) {
+    $('chartTitle').textContent = symbol + ' · ' + interval + (price === null ? '' : ' · ' + money(price));
+    $('metaSymbol').textContent = symbol;
+    $('metaInterval').textContent = interval;
+  }
+
+  function updateCandleState(forming) {
+    const badge = $('candleState');
+    badge.textContent = forming ? 'FORMING CANDLE' : 'LAST CANDLE CLOSED';
+    badge.className = 'badge ' + (forming ? 'warn' : 'safe');
+  }
+
+  function showAnalysis(analysis) {
+    state.analysis = analysis;
+    const signal = analysis.signal || 'WAIT';
+    const multi = analysis.multi_timeframe || {};
+    const reasons = Array.isArray(analysis.reasons) ? analysis.reasons : [];
+    $('signal').innerHTML = '<div class="signal ' + signal.toLowerCase() + '">' + signal +
+      ' · ' + (analysis.confidence === null || analysis.confidence === undefined ? '—' : analysis.confidence) +
+      '% heuristic</div><p class="muted">RSI ' + (analysis.rsi === undefined ? '—' : analysis.rsi) +
+      ' · MACD ' + (analysis.macd || '—') + ' · ' + (analysis.structure || '—') + '</p><ul>' +
+      reasons.map((reason) => '<li>' + String(reason) + '</li>').join('') +
+      '</ul><p class="muted">' + (multi['15m'] || 'UNAVAILABLE') + ' (15m) / ' +
+      (multi['1h'] || 'UNAVAILABLE') + ' (1h)</p>';
+    $('kv').innerHTML = [
+      ['Entry', analysis.entry], ['Stop loss', analysis.sl],
+      ['TP1', analysis.tp1], ['TP2', analysis.tp2],
+      ['TP3', analysis.tp3], ['Support', analysis.support_50],
+      ['Resistance', analysis.resistance_50],
+    ].map(([key, value]) => '<div><small>' + key + '</small><b>' + money(value) + '</b></div>').join('');
+  }
+
+  function renderMarkers(candles) {
+    if (!state.candleSeries) return;
+    const markers = [];
+    candles.forEach((candle, index) => {
+      if (candle.signal !== 'BUY' && candle.signal !== 'SELL') return;
+      if (index > 0 && candles[index - 1].signal === candle.signal) return;
+      markers.push({
+        time: candle.time,
+        position: candle.signal === 'BUY' ? 'belowBar' : 'aboveBar',
+        color: candle.signal === 'BUY' ? '#facc15' : '#60a5fa',
+        shape: candle.signal === 'BUY' ? 'arrowUp' : 'arrowDown',
+        text: candle.signal,
+      });
+    });
+    state.candleSeries.setMarkers(markers);
+  }
+
+  function updatePriceLine(price) {
+    if (!state.candleSeries || !Number.isFinite(Number(price))) return;
+    if (state.priceLine) {
+      try { state.candleSeries.removePriceLine(state.priceLine); } catch (error) { /* removed already */ }
+    }
+    state.priceLine = state.candleSeries.createPriceLine({
+      price: Number(price),
+      color: '#7dd3fc',
+      lineWidth: 1,
+      lineStyle: LightweightCharts.LineStyle.Dotted,
+      axisLabelVisible: true,
+      title: 'last',
+    });
+  }
+
+  function updateOverlays() {
+    if (!state.chart || !state.candles.length) return;
+    const showEma = $('ema').checked;
+    [9, 20, 50, 200].forEach((period, index) => {
+      state.emaSeries[index].setData(showEma ? Core.emaSeries(state.candles, period) : []);
+    });
+    state.levelSeries.forEach((series) => {
+      try { state.chart.removeSeries(series); } catch (error) { /* removed already */ }
+    });
+    state.levelSeries = [];
+    if ($('levels').checked && state.analysis) {
+      const levels = [
+        ['Entry', state.analysis.entry, '#7dd3fc'],
+        ['SL', state.analysis.sl, '#fb7185'],
+        ['TP1', state.analysis.tp1, '#36d399'],
+        ['TP2', state.analysis.tp2, '#36d399'],
+        ['TP3', state.analysis.tp3, '#36d399'],
+      ];
+      const first = state.candles[0].time;
+      const last = state.candles[state.candles.length - 1].time;
+      for (const [name, value, color] of levels) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) continue;
+        const series = state.chart.addLineSeries({
+          color, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed,
+          priceLineVisible: false, lastValueVisible: true, title: name,
+        });
+        series.setData([{ time: first, value: numeric }, { time: last, value: numeric }]);
+        state.levelSeries.push(series);
+      }
+    }
+  }
+
+  function handleLiveCandle(candle) {
+    const key = state.renderedKey;
+    if (!key || key !== candle.symbol + '@' + candle.interval) return;
+    const result = Core.upsertCandle(state.candles, candle, MAX_CANDLES);
+    if (!result.changed) return;
+    const chartCandle = Core.toChartCandle(result.candle, true);
+    state.candleSeries.update(chartCandle);
+    updatePriceLine(candle.close);
+    updateTitle(candle.symbol, candle.interval, candle.close);
+    updateCandleState(!candle.closed);
+    setLastUpdate(new Date());
+    $('currentPrice').textContent = money(candle.close);
+    $('dataSource').textContent = 'Binance live kline';
+    setConnection('live', 'Live ' + candle.symbol + ' ' + candle.interval + ' candle · ' +
+      candle.close.toLocaleString(undefined, { maximumFractionDigits: 8 }) +
+      (candle.closed ? ' · candle closed' : ' · forming'));
+  }
+
+  function mapStreamState(snapshot) {
+    if (!snapshot) return;
+    if (snapshot.state === 'connecting') {
+      setConnection('connecting', 'Connecting live stream for ' + snapshot.symbol + ' ' + snapshot.interval + '…');
+    } else if (snapshot.state === 'connected') {
+      setConnection('connected', 'Stream open; waiting for the first validated candle…');
+    } else if (snapshot.state === 'live') {
+      setConnection('live', 'Live stream active for ' + snapshot.symbol + ' ' + snapshot.interval + '.');
+    } else if (snapshot.state === 'reconnecting') {
+      const seconds = Math.round((snapshot.delayMs || 0) / 1000);
+      setConnection('reconnecting', 'Stream dropped. Reconnecting in ' + seconds + 's (attempt ' +
+        snapshot.retries + '). REST fallback is active.');
+    } else if (snapshot.state === 'offline') {
+      setConnection('offline', 'Live stream offline after ' + snapshot.retries +
+        ' attempts. The chart keeps refreshing from REST every 15 seconds.');
+    } else if (snapshot.state === 'stopped') {
+      setConnection('rest', 'Live stream stopped. REST refresh remains active.');
+    }
+  }
+
+  function ensureStream(symbol, interval) {
+    if (!state.stream) {
+      state.stream = new Core.LiveStream({
+        onState: mapStreamState,
+        onCandle: handleLiveCandle,
+        onError: (error) => {
+          $('statusText').textContent = (error && error.message) || 'Live stream warning';
+        },
+      });
+    }
+    state.stream.start(symbol, interval);
+  }
+
+  function stopStream() {
+    if (state.stream) state.stream.stop();
+  }
+
+  function formatWarnings(built) {
+    return built.warnings.length ? ' · ' + built.warnings[0] : '';
+  }
+
+  async function load(options) {
+    const settings = options || {};
+    const auto = settings.auto === true;
+    const symbol = $('symbol').value.trim().toUpperCase();
+    const interval = $('interval').value;
+    const limit = Number($('count').value);
+    if (!/^[A-Z0-9]{3,30}$/.test(symbol)) {
+      setConnection('error', 'Enter a valid symbol such as BTCUSDT.');
+      return;
+    }
+    if (!Core.intervalSeconds(interval)) {
+      setConnection('error', 'Unsupported timeframe: ' + interval);
+      return;
+    }
+    const key = symbol + '@' + interval;
+    if (auto && state.inflight) return;
+    if (state.inflight) state.inflight.abort();
+    if (key !== state.renderedKey) {
+      stopStream();
+      state.candleSeries && state.candleSeries.setData([]);
+      state.candleSeries && state.candleSeries.setMarkers([]);
+      state.levelSeries.forEach((series) => {
+        try { state.chart.removeSeries(series); } catch (error) { /* removed already */ }
+      });
+      state.levelSeries = [];
+      state.candles = [];
+      state.analysis = null;
+      updateTitle(symbol, interval, null);
+      $('currentPrice').textContent = '—';
+      $('candleCount').textContent = '—';
+      updateCandleState(false);
+      setConnection('connecting', 'Fetching ' + interval + ' candles for ' + symbol + '…');
+    }
+
+    const seq = ++state.loadSeq;
+    const controller = new AbortController();
+    state.inflight = controller;
+    try {
+      initChart();
+      const pair = encodeURIComponent(symbol);
+      const [candlePayload, analysis] = await Promise.all([
+        api('/api/candle-signals/' + pair + '?interval=' + interval + '&limit=' + limit, { signal: controller.signal }),
+        api('/api/analyze/' + pair + '?interval=' + interval, { signal: controller.signal }),
+      ]);
+      if (seq !== state.loadSeq) return;
+      if (candlePayload.interval !== interval) {
+        throw new Error('Server returned ' + candlePayload.interval + ' candles for a ' + interval + ' request');
+      }
+      if (analysis.timeframe !== interval) {
+        throw new Error('Server returned ' + analysis.timeframe + ' analysis for a ' + interval + ' request');
+      }
+      const built = Core.buildCandleSeries(candlePayload.candles, interval, { now: Date.now() / 1000 });
+      if (built.candles.length < 35) {
+        throw new Error('Not enough candles returned to render a reliable chart');
+      }
+      state.candles = built.candles;
+      state.analysis = analysis;
+      state.candleSeries.setData(state.candles.map((candle) => Core.toChartCandle(candle, true)));
+      renderMarkers(state.candles);
+      showAnalysis(analysis);
+      updateOverlays();
+      updatePriceLine(built.candles[built.candles.length - 1].close);
+      updateTitle(symbol, interval, built.candles[built.candles.length - 1].close);
+      $('currentPrice').textContent = money(built.candles[built.candles.length - 1].close);
+      $('candleCount').textContent = String(state.candles.length);
+      $('dataSource').textContent = 'Binance REST (' + interval + ')';
+      updateCandleState(built.forming);
+      setLastUpdate(new Date());
+      if (state.renderedKey !== key || !state.hasFit) {
+        state.chart.timeScale().fitContent();
+        state.hasFit = true;
+      }
+      state.renderedKey = key;
+      ensureStream(symbol, interval);
+      if (built.warnings.length) {
+        $('statusText').textContent = built.warnings[0];
+      } else if (!state.stream.isLive()) {
+        const streamState = state.stream.snapshot().state;
+        if (streamState === 'connecting' || streamState === 'connected' || streamState === 'reconnecting') {
+          setConnection('connecting', 'REST data loaded for ' + symbol + ' ' + interval +
+            '; live stream is connecting. Chart updates are not yet live.');
+        } else {
+          setConnection('rest', 'REST data loaded for ' + symbol + ' ' + interval +
+            '; live stream is not connected. Auto-refresh remains active.');
+        }
+      }
+    } catch (error) {
+      if (error && error.name === 'AbortError') return;
+      if (seq !== state.loadSeq) return;
+      const message = error && error.message ? error.message : String(error);
+      const streamLive = state.stream && state.stream.isLive();
+      setConnection(streamLive ? 'live' : 'error', 'Market data unavailable: ' + message);
+      if (!auto) {
+        $('signal').innerHTML = '<span class="error">No fresh analysis available.</span>';
+        $('kv').innerHTML = '';
+        $('levelsBox').innerHTML = '';
+      }
+    } finally {
+      if (seq === state.loadSeq) {
+        state.inflight = null;
+      }
+    }
+  }
+
+  function checkStreamHealth() {
+    if (!state.stream) return;
+    const snapshot = state.stream.snapshot();
+    if ((snapshot.state === 'live' || snapshot.state === 'connected') &&
+        state.stream.isStaleAt(Date.now(), STALE_AFTER_MS)) {
+      setConnection('stale', 'No live message for more than ' + (STALE_AFTER_MS / 1000) +
+        ' seconds. Last validated update: ' + (state.lastUpdate ? state.lastUpdate.toLocaleTimeString() : 'unknown') +
+        '. REST refresh continues.');
+    } else if (snapshot.state === 'live') {
+      setConnection('live', 'Live stream healthy · last update ' +
+        (state.lastUpdate ? state.lastUpdate.toLocaleTimeString() : 'just now'));
+    }
+  }
+
+  $('load').onclick = () => load({ auto: false });
+  $('ema').onchange = updateOverlays;
+  $('levels').onchange = updateOverlays;
+  $('interval').onchange = () => load({ auto: false });
+  $('count').onchange = () => load({ auto: false });
+  $('symbol').addEventListener('change', () => load({ auto: false }));
+  $('symbol').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') load({ auto: false });
+  });
+  $('full').onclick = async () => {
+    try { await $('chart').requestFullscreen(); } catch (error) { /* fullscreen unavailable */ }
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) load({ auto: true });
+  });
+  window.addEventListener('beforeunload', stopStream);
+  setInterval(() => {
+    if (!document.hidden) load({ auto: true });
+  }, AUTO_REFRESH_MS);
+  setInterval(checkStreamHealth, 5000);
+
+  load({ auto: false });
+})();
+</script>
+</body></html>

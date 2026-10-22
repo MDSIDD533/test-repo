@@ -1,6 +1,6 @@
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 from app.market import MarketDataError, all_24h_tickers, candles
 from app.analysis import analyze_candles
@@ -25,6 +25,10 @@ def dashboard(): return (ROOT / 'static' / 'index.html').read_text(encoding='utf
 
 @app.get('/chart', response_class=HTMLResponse)
 def full_chart(): return (ROOT / 'static' / 'chart.html').read_text(encoding='utf-8')
+
+@app.get('/chart-core.js', include_in_schema=False)
+def chart_core_js():
+    return FileResponse(ROOT / 'static' / 'chart-core.js', media_type='application/javascript')
 
 @app.get('/api/health')
 def health(): return {'status':'ok','version':app.version,'mode':'PAPER ONLY','live_trading_enabled':False}
