@@ -170,9 +170,10 @@ GitHub Actions `tests` runs on this branch:
 | `dc7cba3` | 39723563170 | success |
 | `47e416e` | 39723671534 | success |
 | `b4c6427` | 39724822738 | success |
-| PR #1 (`b4c6427`) | 39724827805 | success |
+| `0726103` | 39734185577 | success |
+| PR #1 (`0726103`) | 39734189882 | success |
 
-The latest verified commit is `b4c6427`; the pull request check on the same commit is green. Later documentation-only commits do not change code or test counts and are re-verified by the same workflow, but the exact current status should be re-checked with `gh run list`.
+The latest verified commit is `0726103`; the pull request check on the same commit is green. Later documentation-only commits do not change code or test counts and are re-verified by the same workflow, but the exact current status should be re-checked with `gh run list`.
 
 Each run executes `node --check static/chart-core.js`, `node --test static/chart-core.test.js` and `python -m pytest -q` on Python 3.12 / Node 22.
 
@@ -184,7 +185,7 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 | 2 | Chart logic tests | 1 | 18 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers; `requests.get` replaced in provider tests |
-| 5 | CI green on latest intended commit | 1 | b4c6427 run 39724822738 and PR run 39724827805 success |
+| 5 | CI green on latest intended commit | 1 | 0726103 run 39734185577 and PR run 39734189882 success |
 | 6 | Evaluator tests | 1 | metrics, coverage, Brier, holdout |
 | 11 | Provider-layer parsing and error contract | 1 | `test_market_provider`: endpoint fallback, schema drift → `MarketDataError` |
 | 7 | Paper/backtest tests | 1 | fees, limits, priority |
