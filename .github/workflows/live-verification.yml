@@ -225,6 +225,12 @@ jobs:
                       lines.append(f"  - `{item.get('symbol')}` → return "
                                    f"{item.get('observed_return_pct')}%, correct="
                                    f"{item.get('direction_correct')} via `{item.get('source')}`")
+                  if data.get("candle_fallback_count"):
+                      lines.append("")
+                      lines.append("> **A candle-close fallback was used.** A pipeline forecast uses the "
+                                   "latest candle close as its reference price, so resolving against another "
+                                   "candle close can produce a degenerate 0.0% return that cannot demonstrate "
+                                   "accuracy. Treat this row as a mechanics check only.")
                   for error in data.get("errors", []):
                       lines.append(f"  - **error**: `{error.get('error')}`")
                   lines.append("")

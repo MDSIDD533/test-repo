@@ -24,9 +24,58 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.forecast_ledger import LedgerError, read_ledger, record_resolution
-from scripts.two_minute_forecast_test import fetch_actual_price_with_fallback
+from scripts.two_minute_forecast_test import (
+    fetch_actual_price_with_fallback,
+    fetch_experiment_spot_price,
+)
 
 Observation = Callable[..., dict[str, Any]]
+
+# A spot ticker is preferred because pipeline forecasts use the latest candle
+# close as their reference price. Resolving them against another candle close
+# can produce a degenerate 0.0% return that says nothing about the forecast.
+DEFAULT_PROVIDERS = ("binance", "coinbase:BTC-USD")
+
+
+def observe_price(
+    symbol: str,
+    target_time: float,
+    *,
+    providers: tuple[str, ...] = DEFAULT_PROVIDERS,
+    tolerance_seconds: float = 90.0,
+) -> dict[str, Any]:
+    """Observe the price at the target time, preferring a real spot ticker.
+
+    Providers are tried in order. Only if no ticker is reachable does this fall
+    back to a completed candle, and the fallback's limitations are recorded.
+    """
+    errors = []
+    for provider in providers:
+        try:
+            price = fetch_experiment_spot_price(symbol, provider)
+        except Exception as exc:  # noqa: BLE001 - every provider failure is evidence
+            errors.append(f"{provider}: {type(exc).__name__}: {exc}")
+            continue
+        return {
+            "price": price,
+            "source": "spot_ticker",
+            "provider": provider,
+            "observed_at": target_time,
+            "target_time": target_time,
+            "time_difference_seconds": 0.0,
+            "ticker_errors": errors,
+        }
+
+    observation = fetch_actual_price_with_fallback(
+        symbol, providers[0], target_time, tolerance_seconds=tolerance_seconds
+    )
+    observation["ticker_errors"] = errors
+    observation["candle_fallback_note"] = (
+        "No spot ticker was reachable. The observation came from a completed "
+        "candle close, which may share the forecast's own reference price and "
+        "therefore cannot demonstrate forecast accuracy."
+    )
+    return observation
 
 
 def _parse(value: str) -> datetime:
@@ -52,11 +101,22 @@ def resolve_pending(
     *,
     now: datetime | None = None,
     limit: int = 10,
-    provider: str = "binance",
-    observation: Observation = fetch_actual_price_with_fallback,
+    provider: str = "auto",
+    observation: Observation | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
     """Append resolutions for due forecasts. Never edits a frozen forecast."""
+    if observation is None:
+        if provider == "auto":
+            providers = DEFAULT_PROVIDERS
+        else:
+            providers = (provider,)
+        observation = lambda symbol, _provider, target: observe_price(  # noqa: E731
+            symbol, target, providers=providers
+        )
+    else:
+        providers = (provider,) if provider != "auto" else DEFAULT_PROVIDERS
+
     moment = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     due_all = pending_forecasts(moment)
     due = due_all[: max(0, limit)]
@@ -84,6 +144,7 @@ def resolve_pending(
                     "observed_price": observed.get("price"),
                     "source": observed.get("source"),
                     "time_difference_seconds": observed.get("time_difference_seconds"),
+                    "candle_fallback_used": observed.get("source") != "spot_ticker",
                     "dry_run": True,
                 }
             )
@@ -114,12 +175,17 @@ def resolve_pending(
                 "observed_return_pct": event["observed_return_pct"],
                 "direction_correct": event["direction_correct"],
                 "source": event["source"],
+                "candle_fallback_used": event["source"] != "spot_ticker",
             }
         )
 
+    candle_fallbacks = sum(1 for item in resolved if item.get("candle_fallback_used"))
     return {
         "checked_at": moment.isoformat(),
         "dry_run": dry_run,
+        "providers_configured": list(providers),
+        "candle_fallback_count": candle_fallbacks,
+        "used_only_spot_tickers": bool(resolved) and candle_fallbacks == 0,
         "due_count": len(due_all),
         "attempted": len(due),
         "resolved_count": 0 if dry_run else len(resolved),
@@ -132,7 +198,11 @@ def resolve_pending(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--limit", type=int, default=10)
-    parser.add_argument("--provider", default="binance")
+    parser.add_argument(
+        "--provider",
+        default="auto",
+        help="'auto' tries binance then coinbase:BTC-USD before any candle fallback",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--out", default=None, help="write the run summary as JSON")
     arguments = parser.parse_args(argv)

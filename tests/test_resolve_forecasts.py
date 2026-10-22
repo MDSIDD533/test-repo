@@ -180,3 +180,84 @@ def test_the_run_summary_includes_the_flat_baseline(monkeypatch, tmp_path, capsy
     assert written["ledger_summary"]["direction_accuracy_pct"] == 100.0
     assert written["ledger_summary"]["always_flat_accuracy_pct"] is not None
     assert written["ledger_summary"]["sample_is_small"] is True
+
+
+def test_auto_mode_prefers_a_spot_ticker_and_never_touches_candles(monkeypatch):
+    calls = []
+
+    def ticker(symbol, provider):
+        calls.append(provider)
+        if provider == "binance":
+            raise RuntimeError("451 geo-block")
+        return 101.0
+
+    def candle_fallback(*args, **kwargs):
+        raise AssertionError("candles must not be used when a ticker works")
+
+    monkeypatch.setattr(resolve_forecasts, "fetch_experiment_spot_price", ticker)
+    monkeypatch.setattr(resolve_forecasts, "fetch_actual_price_with_fallback", candle_fallback)
+
+    result = resolve_forecasts.observe_price("BTCUSDT", 1_700_000_060.0)
+
+    assert result["price"] == 101.0
+    assert result["source"] == "spot_ticker"
+    assert result["provider"] == "coinbase:BTC-USD"
+    assert result["time_difference_seconds"] == 0.0
+    assert calls == ["binance", "coinbase:BTC-USD"]
+    assert any("451" in error for error in result["ticker_errors"])
+
+
+def test_auto_mode_records_the_degenerate_candle_fallback_risk(monkeypatch):
+    def ticker(symbol, provider):
+        raise RuntimeError(f"{provider} unreachable")
+
+    def candle_fallback(symbol, provider, target, **kwargs):
+        return {
+            "price": 100.0,
+            "source": "nearest_completed_1m_candle_close",
+            "provider": provider,
+            "observed_at": target - 30,
+            "target_time": target,
+            "time_difference_seconds": 30.0,
+        }
+
+    monkeypatch.setattr(resolve_forecasts, "fetch_experiment_spot_price", ticker)
+    monkeypatch.setattr(resolve_forecasts, "fetch_actual_price_with_fallback", candle_fallback)
+
+    result = resolve_forecasts.observe_price("BTCUSDT", 1_700_000_060.0)
+
+    assert result["source"] == "nearest_completed_1m_candle_close"
+    assert "cannot demonstrate forecast accuracy" in result["candle_fallback_note"]
+    assert len(result["ticker_errors"]) == 2
+
+
+def test_resolution_flags_when_only_a_candle_fallback_was_used(monkeypatch):
+    freeze()
+    now = datetime(2026, 1, 1, 0, 10, tzinfo=timezone.utc)
+
+    def candle_only(symbol, provider, target):
+        return {
+            "price": 100.0,
+            "source": "nearest_completed_1m_candle_close",
+            "provider": provider,
+            "observed_at": target,
+            "target_time": target,
+            "time_difference_seconds": 0.0,
+        }
+
+    summary = resolve_forecasts.resolve_pending(now=now, observation=candle_only)
+
+    assert summary["candle_fallback_count"] == 1
+    assert summary["used_only_spot_tickers"] is False
+    assert summary["resolved"][0]["candle_fallback_used"] is True
+
+
+def test_resolution_reports_spot_tickers_when_they_are_used():
+    freeze(created="2026-01-01T00:00:00+00:00")
+    summary = resolve_forecasts.resolve_pending(
+        now=datetime(2026, 1, 1, 0, 10, tzinfo=timezone.utc),
+        observation=observation(101.0),
+    )
+
+    assert summary["candle_fallback_count"] == 0
+    assert summary["used_only_spot_tickers"] is True

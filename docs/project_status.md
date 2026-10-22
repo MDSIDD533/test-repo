@@ -209,7 +209,7 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 
 | # | Item | Score | Evidence |
 |---|---|---|---|
-| 1 | Backend unit tests | 1 | 269 passing |
+| 1 | Backend unit tests | 1 | 273 passing |
 | 2 | Chart logic tests | 1 | 19 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers; `requests.get` replaced in provider tests |
@@ -254,6 +254,7 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 - Backtest includes configurable costs and conservative stop priority.
 - Evaluator computes MAE, MAPE, RMSE, direction metrics, confusion matrix, coverage, Brier and baselines.
 - The ledger reports direction accuracy against an always-FLAT baseline on the same resolved sample, with an edge figure, per-direction accuracy and a small-sample flag.
+- The resolver prefers a real spot ticker across providers (Binance, then Coinbase) before any candle fallback, and flags runs that had to fall back. This matters: CI run `39753751064` produced a **degenerate 0.0% return** because the reference price and the resolved candle close were the same series, so the comparison could not fail. That run's `beats_always_flat: false` / edge 0.0% is the honest outcome, and the flag now makes the limitation explicit.
 - Every request and pipeline run emits a structured event; `/api/logs/recent` and the dashboard panel expose the recent tail, and secret-bearing fields are redacted before writing.
 - The pipeline freezes each prediction in an append-only JSONL ledger before the report stage; tests confirm ordering, immutability and that a failed freeze is surfaced.
 - Dashboard shows the recorded failed experiment and the rejected deployment decision.
