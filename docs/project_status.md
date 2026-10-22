@@ -4,7 +4,7 @@ Branch: `arena/a852519f-test-repo` (branched from `main` at `d0101156acc5d23801a
 
 Overall status: **PARTIALLY COMPLETE**.
 
-The checklist score is **94.6%**, but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
+The checklist score is **94.2%** (81 / 86 items), but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
 
 ## 1. Inspection findings
 
@@ -114,7 +114,7 @@ The overall percentage is the sum of item scores divided by the number of items.
 |---|---|---|---|
 | 1 | 100 recorded two-minute trials | 1 | workflow `39610582675`, stored report |
 | 2 | Forecast frozen before outcome | 1 | runner writes forecast then sleeps 120s |
-| 3 | Exact/nearest target-timestamp rule | 1 | spot ticker preferred; nearest completed 1m candle before the target used within 90s; offset recorded |
+| 3 | Exact/nearest target-timestamp rule | 1 | spot ticker preferred across providers; nearest completed candle before the target used within 90s; offset and `candle_fallback_used` recorded |
 | 4 | Mean absolute price error | 1 | evaluator + report |
 | 5 | MAPE with defined denominator | 1 | `mean_absolute_percentage_error_pct` |
 | 6 | RMSE | 1 | `root_mean_squared_error_pct` |
@@ -126,9 +126,10 @@ The overall percentage is the sum of item scores divided by the number of items.
 | 12 | Zero-return/momentum/technical/flat baselines | 1 | `holdout_baselines` (offline evaluator) + always-FLAT comparison on the live ledger |
 | 13 | Chronological split with no holdout tuning | 1 | 70/30 split; selection on train only |
 | 14 | Enhanced evaluator re-run on original 100 artifacts | 0 | artifacts are not in the repository |
-| 15 | New independent live trials | 0.5 | CI resolves one real forecast per run; the 100-trial experiment is still the only batch |
+| 15 | New independent live trials | 0.5 | CI freezes and resolves real forecasts every run and the ledger now accumulates across runs (11 frozen / 8 resolved at `9ff7db9`, 5 distinct start prices). That is a growing live ledger, not a controlled 100-trial batch |
 | 16 | Candidate not deployed after losing to baseline | 1 | `DO_NOT_DEPLOY`, dashboard banner |
 | 17 | Results documented without hiding failure | 1 | README/status/report |
+| 18 | Sample integrity: repeated start prices are counted, not hidden | 1 | `distinct_reference_prices`, `duplicate_reference_rows`, `sample_has_duplicates`; CI warns "3 of 8 resolved rows share a reference price" |
 
 Recorded results (unchanged):
 
@@ -139,7 +140,7 @@ Recorded results (unchanged):
 - Holdout candidate MAE: 0.027016% versus baseline 0.024944%.
 - Decision: `DO_NOT_DEPLOY`.
 
-**Prediction evaluation: 15 / 17 = 88.2%**
+**Prediction evaluation: 16 / 18 = 88.9%**
 
 ## 6. Paper trading
 
@@ -167,11 +168,11 @@ Verified locally with Python 3.11.2 and Node 22.22.3:
 
 ```text
 python -m pytest -q
-210 passed, 1 warning in 1.06s
+285 passed, 1 warning in 1.52s
 
 node --test static/chart-core.test.js
-# tests 18
-# pass 18
+# tests 19
+# pass 19
 # fail 0
 ```
 
@@ -199,9 +200,16 @@ GitHub Actions `tests` runs on this branch:
 | `9c6f2cc` | 39741592115 | success |
 | `13acd95` | 39742247533 | success |
 | `acd02bd` | 39743024864 | success |
-| PR #1 (`0726103`) | 39734189882 | success |
+| `a8eb5c3` | 39753750793 | success |
+| `3dfdfc3` | 39754817436 | success |
+| `f1671b5` | 39756740709 | success |
+| `369dc23` | 39757341320 | success |
+| `4fdee89` | 39758488496 | success |
+| `fdb8fbb` | 39759307738 | success |
+| `9ff7db9` | 39759313605 | success |
+| PR #1 (`9ff7db9`) | 39759313605 | success |
 
-The latest verified code commit is `acd02bd`; the live-verification workflow also passed on it (run 39743024896), and the pull request check on the same commit is green. Later documentation-only commits do not change code or test counts and are re-verified by the same workflow, but the exact current status should be re-checked with `gh run list`.
+The latest verified code commit is `9ff7db9`; the live-verification workflow also passed on it (run 39759307781), and the pull request check on the same commit is green. Later documentation-only commits do not change code or test counts and are re-verified by the same workflow, but the exact current status should be re-checked with `gh run list`.
 
 Each run executes `node --check static/chart-core.js`, `node --test static/chart-core.test.js` and `python -m pytest -q` on Python 3.12 / Node 22.
 
@@ -213,16 +221,17 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 | 2 | Chart logic tests | 1 | 19 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers; `requests.get` replaced in provider tests |
-| 5 | CI green on latest intended commit | 1 | 0726103 run 39734185577 and PR run 39734189882 success |
+| 5 | CI green on latest intended commit | 1 | 9ff7db9 runs 39759313605 (push) and 39759307781 (live) success |
 | 6 | Evaluator tests | 1 | metrics, coverage, Brier, holdout |
 | 11 | Provider-layer parsing and error contract | 1 | `test_market_provider`: endpoint fallback, schema drift → `MarketDataError` |
 | 7 | Paper/backtest tests | 1 | fees, limits, priority |
 | 8 | Application startup verified | 1 | uvicorn; `/api/health`, `/chart`, `/chart-core.js` returned 200 |
-| 9 | Browser-level chart test | 1 | `tests/browser/*.spec.js`, 7 passed in run 39743024896 |
+| 9 | Browser-level chart test | 1 | `tests/browser/*.spec.js`, 7 passed in 56.1s in run 39759307781 |
 | 10 | Failure logs inspected | 1 | chart string mismatch and metric expectations fixed |
 | 12 | Structured logging with an operator-visible tail | 1 | `app/observability.py`, `/api/logs/recent`, 15 tests |
+| 13 | End-to-end live evidence loop, honestly attributed | 1 | `scripts/freeze_and_resolve.py` (10 tests) freezes, waits the forecast's own horizon, resolves, and names whether this run's forecast was the row resolved |
 
-**Testing: 12 / 12 = 100%**
+**Testing: 13 / 13 = 100%**
 
 ## 8. Documentation
 
@@ -254,6 +263,8 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 - Backtest includes configurable costs and conservative stop priority.
 - Evaluator computes MAE, MAPE, RMSE, direction metrics, confusion matrix, coverage, Brier and baselines.
 - The ledger reports direction accuracy against an always-FLAT baseline on the same resolved sample, with an edge figure, per-direction accuracy and a small-sample flag.
+- The live evidence loop is now real: CI run `39759307781` froze forecast `e980f33b…`, waited **63.3s for its own 60s horizon**, resolved **its own** forecast through `spot_ticker` at `+0.05875172%`, and said so explicitly. Earlier runs could not show this — run `39753751064` resolved against a candle close and produced a degenerate `0.0%` (fixed by preferring a ticker), and run `39757341361` silently capped a 300s wait at 240s so the row it reported belonged to an *inherited* forecast (fixed by capping loudly and attributing the row).
+- The ledger now accumulates across runs through `actions/cache` instead of resetting each time: an earlier run inherited 11 forecasts with 8 resolved. Because repeated forecasts against the same start price are not independent trials, the summary counts `distinct_reference_prices` and warns "3 of 8 resolved rows share a reference price with another row". The surviving edge (+12.5% in that run) is therefore explicitly labelled as flattered by duplicates, not evidence of skill.
 - The resolver prefers a real spot ticker across providers (Binance, then Coinbase) before any candle fallback, and flags runs that had to fall back. This matters: CI run `39753751064` produced a **degenerate 0.0% return** because the reference price and the resolved candle close were the same series, so the comparison could not fail. That run's `beats_always_flat: false` / edge 0.0% is the honest outcome, and the flag now makes the limitation explicit.
 - Every request and pipeline run emits a structured event; `/api/logs/recent` and the dashboard panel expose the recent tail, and secret-bearing fields are redacted before writing.
 - The pipeline freezes each prediction in an append-only JSONL ledger before the report stage; tests confirm ordering, immutability and that a failed freeze is surfaced.
@@ -274,15 +285,15 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 4. **Original artifacts:** the 100 trial JSON files are not in the repository; the enhanced evaluator has not been re-run on them.
 5. **New experiments:** no new live trials were run, so no new accuracy claim is made.
 6. **Persistence:** paper trades and forecasts are now written to local files, but neither is a database: there is no cross-process locking, access control, replication or backup.
-7. **Automated resolution:** `scripts/resolve_forecasts.py` is tested with mocked observations but was not run against a live provider, and nothing schedules it.
+7. **Automated resolution:** `scripts/resolve_forecasts.py` now runs against live Coinbase tickers inside the CI job (verified in `39759307781`), but nothing schedules it outside that workflow and it is not a production cron.
+8. **1-minute candles from Coinbase lag.** One pipeline run failed `market_data` with `Market data is stale (189s old; limit 180s)` for interval `1m`; the same run succeeded on `5m`, and a later run succeeded on `1m`. The freshness rule (3 intervals) was **not** loosened for this, so 1-minute evidence depends on the provider publishing promptly. Binance, which publishes faster, is geo-blocked from the runners.
 
 ## 11. Next highest-priority tasks
 
 1. Verify Binance natively (candles and WebSocket) from a network Binance serves; the CI runner is geo-blocked, so only the Coinbase path is proved there.
 2. Download the original 100 trial artifacts and re-run the enhanced evaluator to replace the aggregate-only report with full metrics on the real data.
-3. Schedule `scripts/resolve_forecasts.py` (or call it after each observation) so frozen forecasts accumulate resolved outcomes, then compare direction accuracy against a always-FLAT baseline.
+3. Grow the live ledger to at least 30 *independent* start prices (the current guard counts duplicates), then re-read the always-FLAT comparison — the current edge is not yet meaningful.
 4. Replace the local JSON files with a real datastore (SQLite) if multi-process access is ever needed; today two servers on the same file would not coordinate.
-5. Add structured request/stage logging and an operator-visible error log.
 6. Add an integration test against a recorded Binance fixture.
 7. Review and merge pull request #1 (`https://github.com/MDSIDD533/test-repo/pull/1`) to `main`, then pull locally in VS Code; no automatic sync exists.
 
