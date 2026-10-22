@@ -1,0 +1,24 @@
+name: Cancel accidental forecast batch
+
+# Temporary safety workflow: cancels the unintended 100-trial run triggered by
+# a script path change. It is removed immediately after the run is cancelled.
+on:
+  push:
+    paths:
+      - ".github/workflows/cancel-accidental-run.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel the accidental live batch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh run cancel 39722964529 --repo "${{ github.repository }}" || true
+          gh run view 39722964529 --repo "${{ github.repository }}" --json status,conclusion
