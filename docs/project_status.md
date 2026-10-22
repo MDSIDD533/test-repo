@@ -164,6 +164,8 @@ GitHub Actions `tests` runs on this branch:
 
 Each run executes `node --check static/chart-core.js`, `node --test static/chart-core.test.js` and `python -m pytest -q` on Python 3.12 / Node 22.
 
+The 100-trial live batch was accidentally triggered by a changed script path during this work. It was cancelled (run `39722964529`), and the workflow is now **manual-only** with an explicit `RUN-100-TRIALS` confirmation input. No trial results were produced by the cancelled run.
+
 | # | Item | Score | Evidence |
 |---|---|---|---|
 | 1 | Backend unit tests | 1 | 132 passing |

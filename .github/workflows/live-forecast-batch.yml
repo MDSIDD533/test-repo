@@ -1,11 +1,14 @@
 name: Live two-minute forecast batch (100 trials)
 
+# This workflow costs hours of runner time and is therefore manual-only.
+# A path change must never launch a live experiment automatically.
 on:
-  push:
-    paths:
-      - ".github/workflows/live-forecast-batch.yml"
-      - "scripts/two_minute_forecast_test.py"
   workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type RUN-100-TRIALS to authorize the live experiment'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -13,6 +16,7 @@ permissions:
 jobs:
   batch-1:
     name: Live trials 1-50
+    if: inputs.confirmation == 'RUN-100-TRIALS'
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
