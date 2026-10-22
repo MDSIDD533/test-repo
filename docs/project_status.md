@@ -4,7 +4,7 @@ Branch: `arena/a852519f-test-repo` (branched from `main` at `d0101156acc5d23801a
 
 Overall status: **PARTIALLY COMPLETE**.
 
-The checklist score is **95.3%** (82 / 86 items), but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
+The checklist score is **95.4%** (83 / 87 items), but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
 
 ## 1. Inspection findings
 
@@ -227,9 +227,12 @@ GitHub Actions `tests` runs on this branch:
 | `4fdee89` | 39758488496 | success |
 | `fdb8fbb` | 39759307738 | success |
 | `9ff7db9` | 39759313605 | success |
-| PR #1 (`9ff7db9`) | 39759313605 | success |
+| `806dff1` | 39781332462 | success |
+| `26ffb64` | 39781580225 | success |
+| `dd88ec9` | 39781713504 | success |
+| PR #1 (`dd88ec9`) | 39781713504 | success |
 
-The latest verified code commit is `9ff7db9`; the live-verification workflow also passed on it (run 39759307781), and the pull request check on the same commit is green. Later documentation-only commits do not change code or test counts and are re-verified by the same workflow, but the exact current status should be re-checked with `gh run list`.
+The latest verified code commit is `dd88ec9`; the live-verification workflow also passed on it (run `39781707473`: providers 10 pass / 0 fail / 7 skip, browser 7/7 in 1.1 min), and the pull request check on the same commit is green. The 150-trial batch ran on `806dff1` (run `39761203609`, all jobs green). Later documentation-only commits do not change code or test counts and are re-verified by the same workflow, but the exact current status should be re-checked with `gh run list`.
 
 Each run executes `node --check static/chart-core.js`, `node --test static/chart-core.test.js` and `python -m pytest -q` on Python 3.12 / Node 22.
 
@@ -241,17 +244,18 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 | 2 | Chart logic tests | 1 | 19 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers; `requests.get` replaced in provider tests |
-| 5 | CI green on latest intended commit | 1 | 9ff7db9 runs 39759313605 (push) and 39759307781 (live) success |
+| 5 | CI green on latest intended commit | 1 | dd88ec9 runs 39781713504 (push) and 39781707473 (live) success |
 | 6 | Evaluator tests | 1 | metrics, coverage, Brier, holdout |
 | 11 | Provider-layer parsing and error contract | 1 | `test_market_provider`: endpoint fallback, schema drift → `MarketDataError` |
 | 7 | Paper/backtest tests | 1 | fees, limits, priority |
 | 8 | Application startup verified | 1 | uvicorn; `/api/health`, `/chart`, `/chart-core.js` returned 200 |
-| 9 | Browser-level chart test | 1 | `tests/browser/*.spec.js`, 7 passed in 56.1s in run 39759307781 |
+| 9 | Browser-level chart test | 1 | `tests/browser/*.spec.js`, 7 passed in 1.1m in run 39781707473 |
 | 10 | Failure logs inspected | 1 | chart string mismatch and metric expectations fixed |
 | 12 | Structured logging with an operator-visible tail | 1 | `app/observability.py`, `/api/logs/recent`, 15 tests |
 | 13 | End-to-end live evidence loop, honestly attributed | 1 | `scripts/freeze_and_resolve.py` (10 tests) freezes, waits the forecast's own horizon, resolves, and names whether this run's forecast was the row resolved |
+| 14 | Reproducible batch measurement with published summary | 1 | `scripts/summarize_trial_batch.py` (8 tests) reports accuracy + Wilson CI + baselines + non-overlapping subset; batch run `39761203609` published it from CI |
 
-**Testing: 13 / 13 = 100%**
+**Testing: 14 / 14 = 100%**
 
 ## 8. Documentation
 
