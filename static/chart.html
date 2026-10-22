@@ -365,7 +365,7 @@
       updateTitle(symbol, interval, built.candles[built.candles.length - 1].close);
       $('currentPrice').textContent = money(built.candles[built.candles.length - 1].close);
       $('candleCount').textContent = String(state.candles.length);
-      $('dataSource').textContent = 'Binance REST (' + interval + ')';
+      $('dataSource').textContent = (candlePayload.provider ? candlePayload.provider + ' REST' : 'REST') + ' (' + interval + ')';
       updateCandleState(built.forming);
       setLastUpdate(new Date());
       if (state.renderedKey !== key || !state.hasFit) {

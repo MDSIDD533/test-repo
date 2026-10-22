@@ -128,3 +128,8 @@ class LiveChartPageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_chart_labels_the_provider_reported_by_the_api(self):
+        # The page must not hard-code "Binance" when another provider served the data.
+        self.assertIn("candlePayload.provider", self.chart)
+        self.assertNotIn("'Binance REST (' + interval + ')'", self.chart)

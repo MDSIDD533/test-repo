@@ -5,7 +5,7 @@ import time
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
-from app.market import MarketDataError, all_24h_tickers, candles
+from app.market import MarketDataError, all_24h_tickers, candles, provider_used
 from app.analysis import analyze_candles
 from app import paper
 from app.agents import run_agent_pipeline
@@ -188,7 +188,15 @@ def scanner(limit:int=Query(default=2000,ge=10,le=3000),analyze_top:int=Query(de
 
 @app.get('/api/candles/{symbol}')
 def get_candles(symbol:str,interval:str='5m',limit:int=Query(default=200,ge=35,le=500)):
-    try: return {'symbol':symbol.upper(),'interval':interval,'candles':candles(symbol,interval,limit)}
+    try:
+        rows = candles(symbol, interval, limit)
+        return {
+            'symbol': symbol.upper(),
+            'interval': interval,
+            'candles': rows,
+            # State the actual source rather than always claiming Binance.
+            'provider': provider_used(symbol, interval),
+        }
     except MarketDataError as exc: raise HTTPException(status_code=502,detail=str(exc))
     except ValueError as exc: raise HTTPException(status_code=400,detail=str(exc))
 

@@ -33,16 +33,18 @@ def clean_symbol_cache():
     # Clear the cache on the original function object: some tests replace the
     # module attribute, but the lru_cache lives on the wrapped function.
     _CACHED_SYMBOLS.cache_clear()
+    market._PROVIDER_USED.clear()
     yield
     _CACHED_SYMBOLS.cache_clear()
+    market._PROVIDER_USED.clear()
 
 
 def fake_get(monkeypatch, responses):
     """Install a fake requests.get that answers per-call and records URLs."""
     calls = []
 
-    def _get(url, params=None, timeout=None):
-        calls.append({"url": url, "params": params, "timeout": timeout})
+    def _get(url, params=None, timeout=None, headers=None):
+        calls.append({"url": url, "params": params, "timeout": timeout, "headers": headers})
         index = len(calls) - 1
         result = responses[index]
         if isinstance(result, Exception):
@@ -261,3 +263,82 @@ def test_exchange_info_schema_drift_is_reported_as_a_provider_error(monkeypatch)
 
     with pytest.raises(market.MarketDataError, match="exchangeInfo"):
         market.eligible_usdt_spot_symbols()
+
+
+def test_binance_success_records_binance_as_the_provider(monkeypatch):
+    monkeypatch.setattr(market, "eligible_usdt_spot_symbols", lambda: {"BTCUSDT"})
+    fake_get(monkeypatch, [FakeResponse([[1_700_000_000_000, "1", "2", "0.5", "1.5", "10", 0, "0", 1, "0", "0", "0"]])])
+
+    market.candles("BTCUSDT", "5m")
+
+    assert market.provider_used("btcusdt", "5m") == "binance"
+
+
+def test_geo_blocked_binance_falls_back_to_coinbase_for_btcusdt(monkeypatch):
+    import requests
+
+    monkeypatch.setattr(market, "BASE_URL", "https://api.binance.com")
+    coinbase_rows = [
+        [1_700_000_600, 100.0, 103.0, 101.0, 102.0, 5.0],
+        [1_700_000_000, 99.0, 101.0, 100.0, 100.5, 4.0],
+    ]
+    responses = [requests.HTTPError("451 Unavailable For Legal Reasons")] * len(market.DEFAULT_ENDPOINTS)
+    responses.append(FakeResponse(coinbase_rows))
+    calls = fake_get(monkeypatch, responses)
+
+    rows = market.candles("BTCUSDT", "1h")
+
+    assert [row["close"] for row in rows] == [100.5, 102.0]  # newest-first input reversed
+    assert calls[-1]["url"].endswith("/products/BTC-USD/candles")
+    assert calls[-1]["params"] == {"granularity": 3600}
+    assert market.provider_used("BTCUSDT", "1h") == "coinbase:BTC-USD"
+
+
+def test_fallback_is_not_attempted_for_an_interval_coinbase_cannot_serve(monkeypatch):
+    import requests
+
+    monkeypatch.setattr(market, "BASE_URL", "https://api.binance.com")
+    fake_get(monkeypatch, [requests.HTTPError("451")] * len(market.DEFAULT_ENDPOINTS))
+
+    with pytest.raises(market.MarketDataError):
+        market.candles("BTCUSDT", "4h")
+
+    assert market.provider_used("BTCUSDT", "4h") is None
+
+
+def test_fallback_is_not_attempted_for_a_symbol_without_a_coinbase_product(monkeypatch):
+    import requests
+
+    monkeypatch.setattr(market, "BASE_URL", "https://api.binance.com")
+    fake_get(monkeypatch, [requests.HTTPError("451")] * len(market.DEFAULT_ENDPOINTS))
+
+    with pytest.raises(market.MarketDataError):
+        market.candles("ETHUSDT", "1h")
+
+
+def test_when_both_providers_fail_the_error_names_both(monkeypatch):
+    import requests
+
+    monkeypatch.setattr(market, "BASE_URL", "https://api.binance.com")
+    responses = [requests.HTTPError("451")] * len(market.DEFAULT_ENDPOINTS)
+    responses.append(FakeResponse({}, fail=requests.HTTPError("500 Coinbase down")))
+    fake_get(monkeypatch, responses)
+
+    with pytest.raises(market.MarketDataError) as caught:
+        market.candles("BTCUSDT", "1h")
+
+    message = str(caught.value)
+    assert "Coinbase fallback" in message
+    assert "500 Coinbase down" in message
+
+
+def test_a_malformed_coinbase_payload_is_not_treated_as_valid_candles(monkeypatch):
+    import requests
+
+    monkeypatch.setattr(market, "BASE_URL", "https://api.binance.com")
+    responses = [requests.HTTPError("451")] * len(market.DEFAULT_ENDPOINTS)
+    responses.append(FakeResponse({"not": "a list"}))
+    fake_get(monkeypatch, responses)
+
+    with pytest.raises(market.MarketDataError, match="Coinbase"):
+        market.candles("BTCUSDT", "1h")

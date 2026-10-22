@@ -130,7 +130,12 @@ jobs:
               lines.append("### Real providers and server endpoints")
               lines.append("")
               lines.append(f"Passed **{summary.get('passed', 0)}** · failed **{summary.get('failed', 0)}** · "
+                           f"skipped **{summary.get('skipped', 0)}** · "
                            f"overall **{'PASS' if summary.get('ok') else 'FAIL'}**")
+              if summary.get("skipped"):
+                  lines.append("")
+                  lines.append("> Skipped checks are environment restrictions (for example HTTP 451 geo-blocking), "
+                               "not passes. They are recorded with their reason.")
               lines.append("")
               lines.append("| check | result | detail |")
               lines.append("|---|---|---|")
@@ -139,6 +144,8 @@ jobs:
                   detail = check.get("detail")
                   if check["status"] == "fail":
                       text = str(check.get("error", ""))[:300]
+                  elif check["status"] == "skip":
+                      text = str(check.get("reason", ""))[:200]
                   elif isinstance(detail, dict):
                       keep = {k: detail[k] for k in
                               ("candles", "distinct_deltas", "direction", "action",
@@ -159,7 +166,10 @@ jobs:
           lines.append("")
           if trial.exists() and trial.stat().st_size > 0:
               try:
-                  data = json.loads(trial.read_text())
+                  raw = trial.read_text()
+                  start = raw.find("{")
+                  decoder = json.JSONDecoder()
+                  data, _ = decoder.raw_decode(raw[start:]) if start >= 0 else ({}, 0)
                   forecast = data.get("forecast") or {}
                   comparison = data.get("comparison") or {}
                   observation = data.get("actual_observation") or {}

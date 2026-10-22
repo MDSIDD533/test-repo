@@ -31,6 +31,16 @@ The Testing category gained one item this batch (provider-layer tests), so the d
 
 ## 1a. Why some checks cannot run here, and where they do run
 
+**First live run (2026-10-22, run `39739425882`) found the real blocker:** Binance answers GitHub-hosted runners with **HTTP 451 Unavailable For Legal Reasons** — a geo-block, not a code defect. Every Binance check failed, `/api/candles` returned 502, and 5 of 7 browser tests could not load candles. The dashboard browser tests **passed (2/7)** against real Chromium.
+
+Consequences, all reflected in the code:
+
+- `app/market.py` now falls back to Coinbase BTC-USD for BTCUSDT on the intervals Coinbase serves (1m, 5m, 15m, 1h, 6h, 1d). Candle responses report the provider that actually served them; unsupported symbols/intervals fail rather than being fabricated.
+- HTTP 451 is recorded by the verifier as a **skip with its reason**, never as a pass.
+- The verifier now checks the Coinbase path against live data, which is the path that can be verified from a GitHub runner.
+
+
+
 The development sandbox has no browser and cannot reach Binance or CoinDesk. Rather than leave those claims permanently unverified, they are automated in `.github/workflows/live-verification.yml`, which runs on GitHub-hosted runners where both are available:
 
 - `scripts/live_verification.py` — live spot ticker, 1m/5m/1h/4h/1d kline uniformity and alignment, a real kline WebSocket message, the news feed, and every local endpoint (including that the pipeline froze a forecast and returned `NO TRADE`).
@@ -192,7 +202,7 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 
 | # | Item | Score | Evidence |
 |---|---|---|---|
-| 1 | Backend unit tests | 1 | 232 passing |
+| 1 | Backend unit tests | 1 | 239 passing |
 | 2 | Chart logic tests | 1 | 18 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers; `requests.get` replaced in provider tests |

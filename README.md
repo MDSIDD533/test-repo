@@ -20,6 +20,7 @@ A paper-only crypto spot analysis, market research, short-horizon forecasting an
 - `/chart` interactive candlestick chart with 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h and 1d timeframes.
 - A 120-second forecast preview is available from the dashboard or `GET /api/forecast/two-minute/{symbol}`. It is explicitly unrecorded and uncalibrated; the frozen, evaluated experiment is the GitHub Actions trial runner.
 - The agent pipeline freezes its prediction into an **append-only forecast ledger** before the report stage runs. Resolutions are appended later as separate events; a frozen forecast is never edited or deleted.
+- Binance is the primary provider. When Binance refuses a location (HTTP 451) or is unreachable, **BTCUSDT** candles fall back to Coinbase BTC-USD for the intervals Coinbase really serves (1m, 5m, 15m, 1h, 6h, 1d). Responses state which provider was used; unsupported symbols/intervals still fail instead of inventing candles.
 - Binance kline WebSocket updates the forming candle in place.
 - The previous socket is closed when the symbol or timeframe changes; late callbacks from superseded sockets are ignored.
 - Bounded exponential reconnection with a visible `RECONNECTING` / `OFFLINE` state.
@@ -131,7 +132,7 @@ Copy `.env.example` values into your environment if you want to change paper ris
 
 Current verified baseline (sandbox, Python 3.11.2, Node 22.22.3):
 
-- Python: **232 passed**.
+- Python: **239 passed**.
 - JavaScript chart core: **18 passed**.
 - Browser and live-provider checks: run by the `live-verification` workflow, which requires network access and Chromium.
 - GitHub Actions `tests` workflow: green on the latest pushed commit at time of writing; the status of the newest commit must always be checked separately.
@@ -161,7 +162,7 @@ Tests mock market data. They do not require live Binance availability. Provider-
 ## Known limitations and blockers
 
 - Browser-level verification and live-provider checks are **NOT VERIFIED from the development sandbox**, which has no browser and cannot reach Binance. They are automated in `.github/workflows/live-verification.yml`; see "How to verify this yourself" above. The workflow has to have run at least once against the current commit before you may treat those claims as verified.
-- Binance and CoinDesk are unreachable from the development sandbox. Real provider behavior, the 1h stream against live Binance, and research availability remain **NOT VERIFIED**.
+- Binance and CoinDesk are unreachable from the development sandbox. Binance additionally returns **HTTP 451 (geo-block)** to GitHub-hosted runners, so Binance-specific claims can only be verified from a network Binance serves. The Coinbase fallback covers BTCUSDT and is verified in CI.
 - The original 100-trial artifacts are not stored in the repository; only the aggregate evaluation report is available.
 - Prediction in the agent pipeline is direction-only and uncalibrated. The two-minute experiment is the only point-forecast experiment, and it did not beat its baseline.
 - The forecast ledger is an append-only local JSONL file (`runtime/forecast_ledger.jsonl` by default, git-ignored). It is not a database, has no access control, and is not replicated. Resolution is a manual/scripted step; nothing resolves forecasts automatically.

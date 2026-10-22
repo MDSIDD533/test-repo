@@ -502,3 +502,17 @@ def test_paper_account_surfaces_a_corrupt_state_warning(monkeypatch, tmp_path):
     finally:
         monkeypatch.delenv("PAPER_STATE_PATH", raising=False)
         importlib.reload(main.paper)
+
+
+def test_candles_endpoint_states_the_real_provider(monkeypatch):
+    from app import market
+
+    def fake_with_provider(symbol, interval, limit):
+        market._PROVIDER_USED[(symbol.upper(), interval)] = "coinbase:BTC-USD"
+        return fake_candles(symbol, interval, limit)
+
+    monkeypatch.setattr(main, "candles", fake_with_provider)
+    response = client.get("/api/candles/BTCUSDT?interval=1h&limit=60")
+
+    assert response.status_code == 200
+    assert response.json()["provider"] == "coinbase:BTC-USD"
