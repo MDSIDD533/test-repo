@@ -4,7 +4,7 @@ Branch: `arena/a852519f-test-repo` (branched from `main` at `d0101156acc5d23801a
 
 Overall status: **PARTIALLY COMPLETE**.
 
-The checklist score is **89.5%**, but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
+The checklist score is **90.9%**, but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
 
 ## 1. Inspection findings
 
@@ -26,6 +26,8 @@ The checklist score is **89.5%**, but the system is not complete because several
 - The backtest excluded all costs. It now accepts `fee_bps` and `slippage_bps`, records gross/net return and applies the stop first when both levels are touched in one candle.
 - The evaluator only reported mean absolute error and direction accuracy. It now reports the full metric set below.
 - The stored 100-trial experiment results are preserved exactly; no new live trials were run in this sandbox.
+
+The Testing category gained one item this batch (provider-layer tests), so the denominator is now 82 rather than 81. Earlier percentages in git history used 81 items and are not directly comparable.
 
 ## 2. Checklist scoring method
 
@@ -132,10 +134,10 @@ Recorded results (unchanged):
 | 9 | SL/TP simulation with conservative priority | 1 | paper + backtest both-levels test |
 | 10 | Complete trade record | 1 | entry, exit, fees, reason, gross/net P&L |
 | 11 | Costs included in backtest | 1 | fee/slippage comparison test |
-| 12 | Persistence across restart | 0 | in-memory only |
+| 12 | Persistence across restart | 1 | atomic JSON state; `test_paper_state` restart tests; cross-process server check |
 | 13 | Live trading disabled | 1 | constant false, no order path |
 
-**Paper trading: 12 / 13 = 92.3%**
+**Paper trading: 13 / 13 = 100%**
 
 ## 7. Testing and CI
 
@@ -143,7 +145,7 @@ Verified locally with Python 3.11.2 and Node 22.22.3:
 
 ```text
 python -m pytest -q
-170 passed, 1 warning in 0.87s
+210 passed, 1 warning in 1.06s
 
 node --test static/chart-core.test.js
 # tests 18
@@ -178,18 +180,19 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 
 | # | Item | Score | Evidence |
 |---|---|---|---|
-| 1 | Backend unit tests | 1 | 170 passing |
+| 1 | Backend unit tests | 1 | 210 passing |
 | 2 | Chart logic tests | 1 | 18 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
-| 4 | Tests do not require live Binance | 1 | monkeypatched providers |
+| 4 | Tests do not require live Binance | 1 | monkeypatched providers; `requests.get` replaced in provider tests |
 | 5 | CI green on latest intended commit | 1 | b4c6427 run 39724822738 and PR run 39724827805 success |
 | 6 | Evaluator tests | 1 | metrics, coverage, Brier, holdout |
+| 11 | Provider-layer parsing and error contract | 1 | `test_market_provider`: endpoint fallback, schema drift → `MarketDataError` |
 | 7 | Paper/backtest tests | 1 | fees, limits, priority |
 | 8 | Application startup verified | 1 | uvicorn; `/api/health`, `/chart`, `/chart-core.js` returned 200 |
 | 9 | Browser-level chart test | 0 | no browser |
 | 10 | Failure logs inspected | 1 | chart string mismatch and metric expectations fixed |
 
-**Testing: 9 / 10 = 90.0%**
+**Testing: 10 / 11 = 90.9%**
 
 ## 8. Documentation
 
@@ -222,6 +225,8 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 - Evaluator computes MAE, MAPE, RMSE, direction metrics, confusion matrix, coverage, Brier and baselines.
 - The pipeline freezes each prediction in an append-only JSONL ledger before the report stage; tests confirm ordering, immutability and that a failed freeze is surfaced.
 - Dashboard shows the recorded failed experiment and the rejected deployment decision.
+- The paper account survives a real process restart: a trade seeded in one process was read back from a separately started uvicorn process (`/api/paper/account` showed `open_trades: 1`, `equity: 999.0`, matching the saved file).
+- A deliberately corrupt state file caused the server to start with a fresh balance, return a `state_warning` explaining why, and preserve the damaged file as `*.corrupt-<timestamp>`.
 - `GET /api/forecast/ledger` returned 200 with an empty, honest ledger state; resolving an unknown id returned 400 `unknown forecast_id`; the dashboard serves the ledger panel.
 - A live-server smoke test wrote one **synthetic** ledger record through the API (never real market data), resolved it, saw `direction_accuracy_pct = 100.0` for that single record, then deleted the temporary `runtime/` file. This verifies the HTTP path only; it is not evidence of forecast skill.
 
@@ -232,7 +237,7 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 3. **Live research:** CoinDesk RSS could not be reached; parsing is unit-tested, live availability is not.
 4. **Original artifacts:** the 100 trial JSON files are not in the repository; the enhanced evaluator has not been re-run on them.
 5. **New experiments:** no new live trials were run, so no new accuracy claim is made.
-6. **Persistence:** paper trades remain in memory; the forecast ledger is a local append-only JSONL file, not a database.
+6. **Persistence:** paper trades and forecasts are now written to local files, but neither is a database: there is no cross-process locking, access control, replication or backup.
 7. **Automated resolution:** `scripts/resolve_forecasts.py` is tested with mocked observations but was not run against a live provider, and nothing schedules it.
 
 ## 11. Next highest-priority tasks
@@ -240,7 +245,7 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 1. Run the chart in a real browser against live Binance, record screenshots/console evidence, and verify 5m/15m/1h/4h switching, zoom preservation and reconnect behavior.
 2. Download the original 100 trial artifacts and re-run the enhanced evaluator to replace the aggregate-only report with full metrics on the real data.
 3. Schedule `scripts/resolve_forecasts.py` (or call it after each observation) so frozen forecasts accumulate resolved outcomes, then compare direction accuracy against a always-FLAT baseline.
-4. Add persistent paper-account storage and a restart test.
+4. Replace the local JSON files with a real datastore (SQLite) if multi-process access is ever needed; today two servers on the same file would not coordinate.
 5. Add structured request/stage logging and an operator-visible error log.
 6. Add an integration test against a recorded Binance fixture.
 7. Review and merge pull request #1 (`https://github.com/MDSIDD533/test-repo/pull/1`) to `main`, then pull locally in VS Code; no automatic sync exists.

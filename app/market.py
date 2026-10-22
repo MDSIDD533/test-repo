@@ -40,6 +40,8 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
 @lru_cache(maxsize=1)
 def eligible_usdt_spot_symbols() -> set[str]:
     info = _get('/api/v3/exchangeInfo')
+    if not isinstance(info, dict) or not isinstance(info.get('symbols'), list):
+        raise MarketDataError('Binance exchangeInfo payload was not the expected object with a symbols list')
     excluded = ('UPUSDT', 'DOWNUSDT', 'BULLUSDT', 'BEARUSDT')
     result = set()
     for item in info.get('symbols', []):
@@ -50,10 +52,12 @@ def eligible_usdt_spot_symbols() -> set[str]:
 
 def all_24h_tickers() -> list[dict[str, Any]]:
     raw = _get('/api/v3/ticker/24hr')
+    if not isinstance(raw, list):
+        raise MarketDataError('Binance 24h ticker payload was not a list')
     allowed = eligible_usdt_spot_symbols()
     rows = []
     for item in raw:
-        if item.get('symbol') not in allowed:
+        if not isinstance(item, dict) or item.get('symbol') not in allowed:
             continue
         try:
             rows.append({'symbol': item['symbol'], 'price': float(item['lastPrice']), 'change_percent': float(item['priceChangePercent']), 'quote_volume': float(item['quoteVolume']), 'high': float(item['highPrice']), 'low': float(item['lowPrice'])})
@@ -68,4 +72,6 @@ def candles(symbol: str, interval: str = '5m', limit: int = 200) -> list[dict[st
     if symbol not in eligible_usdt_spot_symbols():
         raise ValueError('Symbol is not an eligible Binance USDT spot pair')
     raw = _get('/api/v3/klines', {'symbol': symbol, 'interval': interval, 'limit': max(30, min(limit, 500))})
+    if not isinstance(raw, list):
+        raise MarketDataError('Binance kline payload was not a list')
     return [{'time': r[0] / 1000, 'open': float(r[1]), 'high': float(r[2]), 'low': float(r[3]), 'close': float(r[4]), 'volume': float(r[5])} for r in raw]

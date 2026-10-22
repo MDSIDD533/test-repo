@@ -46,3 +46,12 @@ def test_dashboard_shows_the_forecast_ledger_honestly():
     assert "not evidence of skill" in html
     # A missing freeze must be visible in the prediction card, not implied.
     assert "NOT FROZEN" in html
+
+
+def test_dashboard_surfaces_paper_state_persistence_and_warnings():
+    html = (Path(__file__).resolve().parents[1] / "static" / "index.html").read_text(encoding="utf-8")
+
+    assert 'id="paperStateNote"' in html
+    assert "state_warning" in html
+    assert "A restart reloads this record" in html
+    assert "not a database" in html

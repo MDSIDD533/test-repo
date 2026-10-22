@@ -16,3 +16,16 @@ def isolated_forecast_ledger(monkeypatch):
             "FORECAST_LEDGER_PATH", os.path.join(directory, "forecast_ledger.jsonl")
         )
         yield
+
+
+@pytest.fixture(autouse=True)
+def isolated_paper_state(monkeypatch):
+    """Give every test a private paper account file and a clean in-memory state."""
+    from app import paper
+
+    with tempfile.TemporaryDirectory() as directory:
+        monkeypatch.setenv(
+            "PAPER_STATE_PATH", os.path.join(directory, "paper_state.json")
+        )
+        paper.reload_state()
+        yield

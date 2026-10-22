@@ -471,3 +471,34 @@ def test_forecast_ledger_resolution_validates_the_observation_payload():
     )
     assert negative.status_code == 422
     assert blank_source.status_code == 422
+
+
+def test_paper_account_reports_persistence_state(monkeypatch):
+    monkeypatch.setenv("PAPER_STATE_PATH", str(main.paper.state_path()))
+    response = client.get("/api/paper/account")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["persisted"] is True
+    assert data["state_warning"] is None
+    assert data["state_file"].endswith("paper_state.json")
+    assert data["live_trading_enabled"] is False
+
+
+def test_paper_account_surfaces_a_corrupt_state_warning(monkeypatch, tmp_path):
+    import importlib
+
+    target = tmp_path / "paper_state.json"
+    target.write_text("{broken", encoding="utf-8")
+    monkeypatch.setenv("PAPER_STATE_PATH", str(target))
+    reloaded = importlib.reload(main.paper)
+    try:
+        response = client.get("/api/paper/account")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["state_warning"]
+        assert "could not be loaded" in data["state_warning"]
+        assert data["equity"] == reloaded.STARTING_BALANCE
+        assert list(tmp_path.glob("paper_state.json.corrupt-*"))
+    finally:
+        monkeypatch.delenv("PAPER_STATE_PATH", raising=False)
+        importlib.reload(main.paper)

@@ -58,9 +58,10 @@ The stored aggregate report is `reports/forecast-model-evaluation-2026-10-21.jso
 
 ### Paper trading and backtesting
 
-- In-memory paper account with balance, equity, open exposure, realized P&L and fees.
+- Paper account with balance, equity, open exposure, realized P&L and fees, persisted to an atomic JSON file (`runtime/paper_state.json` by default) and restored on restart.
 - Configurable risk per trade, maximum open positions, per-side fee and slippage.
 - Duplicate open positions for the same symbol are rejected.
+- A damaged state file is quarantined as `*.corrupt-<timestamp>` and reported through `state_warning`; the account is never silently reset without a trace.
 - Stop-loss and TP1 exits record requested/filled price, gross P&L, fees, net P&L, reason and timestamps.
 - Backtest applies configurable fees/slippage and conservatively assumes the stop is hit first when one candle touches both stop and target.
 - Backtests remain simplified: no order-book depth, spread, funding (spot) or intrabar tick data.
@@ -86,11 +87,11 @@ Copy `.env.example` values into your environment if you want to change paper ris
 
 Current verified baseline (sandbox, Python 3.11.2, Node 22.22.3):
 
-- Python: **170 passed**.
+- Python: **210 passed**.
 - JavaScript chart core: **18 passed**.
 - GitHub Actions `tests` workflow: green on the latest pushed commit at time of writing; the status of the newest commit must always be checked separately.
 
-Tests mock market data. They do not require live Binance availability. The chart-core tests cover message validation, 1h alignment, candle ordering/de-duplication, stale detection, symbol/timeframe switching, superseded callbacks, reconnect backoff and retry limits.
+Tests mock market data. They do not require live Binance availability. Provider-layer tests replace `requests.get`, so URL selection, endpoint fallback, kline parsing and the `MarketDataError` contract are covered without network access; every test also gets a private paper-state and ledger file. The chart-core tests cover message validation, 1h alignment, candle ordering/de-duplication, stale detection, symbol/timeframe switching, superseded callbacks, reconnect backoff and retry limits.
 
 ## API
 
@@ -119,7 +120,7 @@ Tests mock market data. They do not require live Binance availability. The chart
 - The original 100-trial artifacts are not stored in the repository; only the aggregate evaluation report is available.
 - Prediction in the agent pipeline is direction-only and uncalibrated. The two-minute experiment is the only point-forecast experiment, and it did not beat its baseline.
 - The forecast ledger is an append-only local JSONL file (`runtime/forecast_ledger.jsonl` by default, git-ignored). It is not a database, has no access control, and is not replicated. Resolution is a manual/scripted step; nothing resolves forecasts automatically.
-- Paper trades are in memory and reset on restart. There is no database, authentication, alert delivery or multi-user isolation.
+- The paper account is a local JSON file with no access control, locking across processes or replication. Two servers pointed at the same file would not coordinate. There is no database, authentication, alert delivery or multi-user isolation.
 - No live trading remains a deliberate invariant. Any future live execution requires a separate safety-critical review, explicit authorization and tested order controls.
 
 ## VS Code synchronization
