@@ -40,11 +40,25 @@ def _default_get(url: str, params: dict[str, Any] | None = None) -> dict[str, An
     return response.json()
 
 
+def _summarize_stages(pipeline: dict[str, Any]) -> dict[str, Any]:
+    """Keep the status and any error text for every stage."""
+    summary = {}
+    for stage in pipeline.get("stages", []):
+        name = stage.get("stage")
+        summary[name] = {
+            "status": stage.get("status"),
+            "errors": (stage.get("errors") or [])[:2],
+            "warnings": (stage.get("warnings") or [])[:2],
+        }
+    return summary
+
+
 def freeze_and_resolve(
     base_url: str,
     *,
     symbol: str = "BTCUSDT",
     interval: str = "1m",
+    fallback_intervals: tuple[str, ...] = ("5m",),
     get: Callable[..., dict[str, Any]] = _default_get,
     sleep: Callable[[float], None] = time.sleep,
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
@@ -66,35 +80,51 @@ def freeze_and_resolve(
         return report
     report["steps"].append({"step": "read_ledger_before", "total": report["ledger_before"].get("total")})
 
-    try:
-        pipeline = get(f"{base_url}/api/agents/run/{symbol}", params={"interval": interval})
-    except Exception as exc:  # noqa: BLE001
-        report["error"] = f"pipeline request failed: {type(exc).__name__}: {exc}"
-        return report
-
-    stages = {stage.get("stage"): stage.get("status") for stage in pipeline.get("stages", [])}
-    prediction = next(
-        (stage for stage in pipeline.get("stages", []) if stage.get("stage") == "prediction"), {}
-    )
-    prediction_result = prediction.get("result") or {}
-    report["pipeline"] = {
-        "status": pipeline.get("status"),
-        "action": pipeline.get("action"),
-        "stages": stages,
-        "forecast_ledger_id": prediction_result.get("forecast_ledger_id"),
-        "forecast_target_time": prediction_result.get("forecast_target_time"),
-        "horizon_seconds": prediction_result.get("horizon_seconds"),
-        "ledger_error": prediction_result.get("ledger_error"),
-    }
-    report["steps"].append(
-        {"step": "run_pipeline", "status": pipeline.get("status"), "action": pipeline.get("action")}
-    )
-
-    if not prediction_result.get("forecast_ledger_id"):
-        report["error"] = (
-            "no forecast was frozen; see pipeline.stages for the blocking stage"
+    # A short interval can fail its own freshness check with a provider whose
+    # newest candle lags. Try each configured interval rather than assuming one.
+    attempts = []
+    chosen = None
+    for candidate in (interval, *fallback_intervals):
+        try:
+            pipeline = get(f"{base_url}/api/agents/run/{symbol}", params={"interval": candidate})
+        except Exception as exc:  # noqa: BLE001
+            attempts.append({"interval": candidate, "error": f"{type(exc).__name__}: {exc}"})
+            continue
+        prediction = next(
+            (stage for stage in pipeline.get("stages", []) if stage.get("stage") == "prediction"), {}
         )
+        prediction_result = prediction.get("result") or {}
+        attempt = {
+            "interval": candidate,
+            "status": pipeline.get("status"),
+            "action": pipeline.get("action"),
+            "stages": _summarize_stages(pipeline),
+            "forecast_ledger_id": prediction_result.get("forecast_ledger_id"),
+            "forecast_target_time": prediction_result.get("forecast_target_time"),
+            "horizon_seconds": prediction_result.get("horizon_seconds"),
+            "ledger_error": prediction_result.get("ledger_error"),
+        }
+        attempts.append(attempt)
+        if prediction_result.get("forecast_ledger_id"):
+            chosen = attempt
+            report["interval"] = candidate
+            break
+
+    report["pipeline_attempts"] = attempts
+    if chosen is None:
+        report["error"] = (
+            "no forecast was frozen at any configured interval; "
+            "see pipeline_attempts for the blocking stage"
+        )
+        report["pipeline"] = attempts[-1] if attempts else {}
         return report
+
+    report["pipeline"] = chosen
+    prediction_result = chosen
+    report["steps"].append(
+        {"step": "run_pipeline", "interval": chosen["interval"], "status": chosen["status"],
+         "action": chosen["action"]}
+    )
 
     target_text = prediction_result.get("forecast_target_time")
     try:

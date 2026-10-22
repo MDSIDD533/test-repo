@@ -39,11 +39,15 @@ class FakeClock:
 def make_get(clock, pipeline, ledger_summaries):
     calls = []
     queue = list(ledger_summaries)
+    payloads = pipeline if isinstance(pipeline, list) else [pipeline]
 
     def get(url, params=None):
         calls.append({"url": url, "params": params})
         if "agents/run" in url:
-            return pipeline
+            item = payloads.pop(0) if len(payloads) > 1 else payloads[0]
+            if isinstance(item, Exception):
+                raise item
+            return item
         return {"summary": queue.pop(0) if queue else {"total": 0, "resolved": 0}}
 
     get.calls = calls
@@ -100,8 +104,10 @@ def test_no_frozen_forecast_is_reported_without_waiting():
     )
 
     assert clock.slept == []
-    assert "no forecast was frozen" in report["error"]
-    assert report["pipeline"]["stages"]["market_data"] == "failed"
+    assert "no forecast was frozen at any configured interval" in report["error"]
+    assert report["pipeline_attempts"][0]["stages"]["market_data"]["status"] == "failed"
+    # it retried the fallback interval instead of giving up on the first miss
+    assert [attempt["interval"] for attempt in report["pipeline_attempts"]] == ["1m", "5m"]
 
 
 def test_a_ledger_error_from_the_pipeline_is_surfaced():
@@ -150,8 +156,8 @@ def test_a_pipeline_request_failure_after_a_successful_ledger_read_is_reported()
         "http://test", get=get, sleep=clock.sleep, now=clock.now
     )
 
-    assert "pipeline request failed" in report["error"]
-    assert "connection reset" in report["error"]
+    assert "no forecast was frozen" in report["error"]
+    assert "connection reset" in report["pipeline_attempts"][0]["error"]
     assert report["ledger_before"] == {"total": 0}
 
 
@@ -211,3 +217,29 @@ def test_it_actually_resolves_a_due_forecast_from_the_ledger(monkeypatch):
     assert report["resolution"]["resolved_count"] == 1
     assert report["ledger_after"]["resolved"] == 1
     assert any(step["step"] == "resolve_due_forecasts" for step in report["steps"])
+
+
+def test_it_falls_back_to_a_working_interval_and_records_the_failed_one():
+    clock = FakeClock()
+    target = NOW + timedelta(seconds=60)
+    failed = {
+        "status": "failed",
+        "action": "NO TRADE",
+        "stages": [
+            {"stage": "market_data", "status": "failed",
+             "errors": ["candles are stale: newest 1m candle is 240s old"]},
+            {"stage": "prediction", "status": "unavailable", "result": {}},
+        ],
+    }
+    get = make_get(clock, [failed, pipeline_payload(target)], [{"total": 0}, {"total": 1}])
+
+    report = freeze_and_resolve.freeze_and_resolve(
+        "http://test", get=get, sleep=clock.sleep, now=clock.now
+    )
+
+    assert report["interval"] == "5m"
+    assert "error" not in report
+    assert report["pipeline_attempts"][0]["interval"] == "1m"
+    assert "stale" in report["pipeline_attempts"][0]["stages"]["market_data"]["errors"][0]
+    # the wait is derived from the successful attempt, not the failed one
+    assert clock.slept == [pytest.approx(65.0, abs=0.1)]

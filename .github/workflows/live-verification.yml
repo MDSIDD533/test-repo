@@ -233,6 +233,22 @@ jobs:
                   lines.append(f"- Frozen forecast: `{pipeline.get('forecast_ledger_id') or 'NONE'}` · "
                                f"horizon {pipeline.get('horizon_seconds')}s · waited "
                                f"{data.get('wait_seconds')}s")
+                  attempts = data.get("pipeline_attempts") or []
+                  if len(attempts) > 1:
+                      lines.append("")
+                      lines.append("Interval attempts:")
+                      for attempt in attempts:
+                          blocked = [
+                              f"{name} {info.get('status')}"
+                              + (f" ({'; '.join(info.get('errors') or [])})" if info.get("errors") else "")
+                              for name, info in (attempt.get("stages") or {}).items()
+                              if info.get("status") not in ("completed", "ok")
+                          ]
+                          lines.append(
+                              f"  - `{attempt.get('interval')}` → {attempt.get('status')}"
+                              + (f" · {' · '.join(blocked)}" if blocked else "")
+                          )
+                      lines.append("")
                   lines.append(f"- Due: {resolution.get('due_count')} · attempted: "
                                f"{resolution.get('attempted')} · resolved: {resolution.get('resolved_count')}")
                   for item in (resolution.get("resolved") or [])[:5]:
