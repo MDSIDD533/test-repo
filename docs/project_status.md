@@ -160,7 +160,12 @@ GitHub Actions `tests` runs on this branch:
 | `c7ad9ff` | 39722221887 | success |
 | `1fff9fb` | 39722386870 | success |
 | `4d0a8dd` | 39722594591 | success |
-| docs commit | see latest run | verify after push |
+| `e5c207f` | 39722964519 | success |
+| `f0712a3` | 39723150937 | success |
+| `44ff229` | 39723243323 | success |
+| `172fcb7` | 39723354741 | success |
+
+The latest verified code commit is `172fcb7`. Later documentation-only commits run the same workflow; the exact current status must be checked with `gh run list`.
 
 Each run executes `node --check static/chart-core.js`, `node --test static/chart-core.test.js` and `python -m pytest -q` on Python 3.12 / Node 22.
 
@@ -172,7 +177,7 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 | 2 | Chart logic tests | 1 | 18 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers |
-| 5 | CI green on latest intended commit | 1 | see latest run after final push |
+| 5 | CI green on latest intended commit | 1 | 172fcb7 run 39723354741 success |
 | 6 | Evaluator tests | 1 | metrics, coverage, Brier, holdout |
 | 7 | Paper/backtest tests | 1 | fees, limits, priority |
 | 8 | Application startup verified | 1 | uvicorn; `/api/health`, `/chart`, `/chart-core.js` returned 200 |
