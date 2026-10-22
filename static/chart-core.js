@@ -295,9 +295,12 @@
       const settings = options || {};
       this.WebSocketImpl = settings.WebSocketImpl ||
         (typeof WebSocket !== 'undefined' ? WebSocket : null);
-      this.setTimeoutImpl = settings.setTimeoutImpl || setTimeout;
-      this.clearTimeoutImpl = settings.clearTimeoutImpl || clearTimeout;
-      this.now = settings.now || Date.now;
+      // Browser host functions such as window.setTimeout reject being called
+      // with a foreign `this` (Chrome raises "Illegal invocation"). Always wrap
+      // them so they are never invoked as a method of this object.
+      this.setTimeoutImpl = settings.setTimeoutImpl || ((fn, ms) => setTimeout(fn, ms));
+      this.clearTimeoutImpl = settings.clearTimeoutImpl || ((id) => clearTimeout(id));
+      this.now = settings.now || (() => Date.now());
       this.urlFor = settings.urlFor || function (symbol, interval) {
         return 'wss://stream.binance.com:9443/ws/' +
           String(symbol).toLowerCase() + '@kline_' + interval;

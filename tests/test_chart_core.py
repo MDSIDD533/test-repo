@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -10,11 +11,17 @@ CORE = ROOT / "static" / "chart-core.js"
 CORE_TESTS = ROOT / "static" / "chart-core.test.js"
 
 
+def strip_comments(source: str) -> str:
+    """Remove comments so prose cannot satisfy or trip a code-level guard."""
+    without_block = re.sub(r"/\*.*?\*/", "", source, flags=re.DOTALL)
+    return re.sub(r"^\s*//.*$", "", without_block, flags=re.MULTILINE)
+
+
 def test_chart_core_has_no_dom_dependencies():
-    source = CORE.read_text(encoding="utf-8")
+    code = strip_comments(CORE.read_text(encoding="utf-8"))
     for forbidden in ("document.", "window.", "getElementById"):
-        assert forbidden not in source
-    assert "module.exports" in source
+        assert forbidden not in code
+    assert "module.exports" in code
 
 
 def test_chart_core_covers_every_supported_interval():

@@ -360,3 +360,15 @@ test('LiveStream reports no data as stale even while the socket is open', () => 
   assert.equal(harness.stream.isStaleAt(1700000002000 + 1000, 30000), false);
   assert.equal(harness.stream.isStaleAt(1700000002000 + 60000, 30000), true);
 });
+
+test('host timer functions are wrapped so they are never invoked as object methods', () => {
+  const stream = new Core.LiveStream({ WebSocketImpl: function () {}, setTimeoutImpl: null });
+  // In browsers, calling window.setTimeout with a foreign `this` throws
+  // "Illegal invocation". The defaults must therefore be wrappers, not the
+  // host functions themselves. Node does not enforce this, so assert identity.
+  assert.notStrictEqual(stream.setTimeoutImpl, globalThis.setTimeout);
+  assert.notStrictEqual(stream.clearTimeoutImpl, globalThis.clearTimeout);
+  assert.notStrictEqual(stream.now, Date.now);
+  assert.strictEqual(typeof stream.setTimeoutImpl, 'function');
+  assert.strictEqual(typeof stream.now(), 'number');
+});
