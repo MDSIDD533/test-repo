@@ -164,8 +164,10 @@ GitHub Actions `tests` runs on this branch:
 | `f0712a3` | 39723150937 | success |
 | `44ff229` | 39723243323 | success |
 | `172fcb7` | 39723354741 | success |
+| `1da9e25` | 39723431429 | success |
+| PR #1 (`1da9e25`) | 39723449206 | success |
 
-The latest verified code commit is `172fcb7`. Later documentation-only commits run the same workflow; the exact current status must be checked with `gh run list`.
+The latest verified commit is `1da9e25`; the pull request check on the same commit is green. Later documentation-only commits trigger the same workflow, and the exact current status should be re-checked with `gh run list`.
 
 Each run executes `node --check static/chart-core.js`, `node --test static/chart-core.test.js` and `python -m pytest -q` on Python 3.12 / Node 22.
 
@@ -177,7 +179,7 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 | 2 | Chart logic tests | 1 | 18 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers |
-| 5 | CI green on latest intended commit | 1 | 172fcb7 run 39723354741 success |
+| 5 | CI green on latest intended commit | 1 | 1da9e25 run 39723431429 and PR run 39723449206 success |
 | 6 | Evaluator tests | 1 | metrics, coverage, Brier, holdout |
 | 7 | Paper/backtest tests | 1 | fees, limits, priority |
 | 8 | Application startup verified | 1 | uvicorn; `/api/health`, `/chart`, `/chart-core.js` returned 200 |
@@ -206,7 +208,8 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 ## 9. Verified working now
 
 - `uvicorn app.main:app` starts; `/api/health` returns `PAPER ONLY`, live disabled.
-- `/chart` and `/chart-core.js` are served.
+- `/chart` (22,950 bytes), `/chart-core.js` (16,400 bytes, `application/javascript`), `/` and `/api/reports/forecast-evaluation` return 200.
+- With Binance unreachable, `/api/candles/BTCUSDT?interval=1h` and `/api/forecast/two-minute/BTCUSDT` return 502 rather than a misleading 400.
 - Chart core behaves correctly in Node tests for validation, 1h alignment, switching, stale callbacks and reconnect limits.
 - Backend forwards all nine intervals exactly, and a mocked 1h fixture produces candles spaced 3600 seconds apart.
 - All seven agent stages run in tests; missing research is `unavailable`, not fabricated; action is `NO TRADE`.
@@ -234,10 +237,10 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 4. Add persistent paper-account storage and a restart test.
 5. Add structured request/stage logging and an operator-visible error log.
 6. Add an integration test against a recorded Binance fixture.
-7. Open/merge the pull request to `main`, then pull locally in VS Code; no automatic sync exists.
+7. Review and merge pull request #1 (`https://github.com/MDSIDD533/test-repo/pull/1`) to `main`, then pull locally in VS Code; no automatic sync exists.
 
 ## 12. Git and synchronization
 
 - All work is on `arena/a852519f-test-repo`; it is pushed to origin.
-- A pull request should be opened to `main`. Until it is reviewed and merged, `main` is unchanged.
+- Pull request #1 is open against `main`. Until it is reviewed and merged, `main` is unchanged.
 - VS Code does not update automatically. Use `git pull --ff-only` after merge. No sync workflow is configured or verified.
