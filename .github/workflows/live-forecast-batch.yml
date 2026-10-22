@@ -20,6 +20,20 @@ on:
         default: '180'
         type: string
 
+  workflow_call:
+    inputs:
+      confirmation:
+        required: true
+        type: string
+      trials:
+        required: false
+        default: '150'
+        type: string
+      spacing_seconds:
+        required: false
+        default: '180'
+        type: string
+
 permissions:
   contents: read
 

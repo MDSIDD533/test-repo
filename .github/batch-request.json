@@ -1,0 +1,5 @@
+{
+  "confirmation": "RUN-LIVE-BATCH",
+  "trials": 150,
+  "spacing_seconds": 180
+}
