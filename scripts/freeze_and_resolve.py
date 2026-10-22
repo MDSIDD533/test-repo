@@ -26,7 +26,7 @@ import requests
 
 from scripts.resolve_forecasts import resolve_pending
 
-MAX_WAIT_SECONDS = 240
+MAX_WAIT_SECONDS = 420
 SETTLE_SECONDS = 5
 
 
@@ -134,15 +134,28 @@ def freeze_and_resolve(
         return report
 
     wait_seconds = (target - now()).total_seconds() + SETTLE_SECONDS
+    required_seconds = wait_seconds
     wait_seconds = max(0.0, min(wait_seconds, float(max_wait_seconds)))
     report["wait_seconds"] = round(wait_seconds, 1)
-    report["steps"].append({"step": "wait_for_horizon", "seconds": report["wait_seconds"]})
+    report["wait_required_seconds"] = round(max(0.0, required_seconds), 1)
+    # If the cap bites we must say so: resolving before the target time would
+    # turn the newest forecast into a row that merely looks resolved.
+    report["wait_capped"] = required_seconds > wait_seconds + 0.001
+    report["steps"].append(
+        {"step": "wait_for_horizon", "seconds": report["wait_seconds"],
+         "capped": report["wait_capped"]}
+    )
     if wait_seconds:
         sleep(wait_seconds)
 
     observation_time = now()
     resolution = resolve_pending(now=observation_time, limit=5, provider="auto")
     report["resolution"] = resolution
+    resolved_ids = {
+        item.get("forecast_id") for item in resolution.get("resolved") or []
+    }
+    # Distinguish "our forecast was evaluated" from "an older forecast was".
+    report["this_run_resolved"] = prediction_result.get("forecast_ledger_id") in resolved_ids
     report["steps"].append(
         {
             "step": "resolve_due_forecasts",
@@ -160,6 +173,7 @@ def freeze_and_resolve(
         report["ledger_after_error"] = f"{type(exc).__name__}: {exc}"
     report["steps"].append({"step": "read_ledger_after", "resolved": report["ledger_after"].get("resolved")})
     report["finished_at"] = observation_time.isoformat()
+    report["new_forecast_pending"] = not report["this_run_resolved"]
     report["session_hours"] = round(
         (observation_time - _parse(prediction_result["forecast_target_time"])).total_seconds() / 3600, 4
     )

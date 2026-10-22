@@ -251,6 +251,15 @@ jobs:
                       lines.append("")
                   lines.append(f"- Due: {resolution.get('due_count')} · attempted: "
                                f"{resolution.get('attempted')} · resolved: {resolution.get('resolved_count')}")
+                  if data.get("wait_capped"):
+                      lines.append(f"- **Wait capped at {data.get('wait_seconds')}s** (needed "
+                                   f"{data.get('wait_required_seconds')}s); this run's own forecast is "
+                                   f"still pending, so nothing below describes it.")
+                  elif data.get("this_run_resolved"):
+                      lines.append("- This run's own frozen forecast was the row resolved below.")
+                  else:
+                      lines.append("- This run's own frozen forecast was **not** the row resolved below "
+                                   "(an inherited forecast was due first).")
                   for item in (resolution.get("resolved") or [])[:5]:
                       lines.append(f"  - `{item.get('symbol')}` → return "
                                    f"{item.get('observed_return_pct')}%, correct="

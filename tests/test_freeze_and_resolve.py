@@ -70,6 +70,7 @@ def test_it_waits_exactly_until_the_frozen_target_time():
     # 60s horizon plus the settle margin, not a guess.
     assert clock.slept == [pytest.approx(65.0, abs=0.1)]
     assert report["wait_seconds"] == pytest.approx(65.0, abs=0.1)
+    assert report["wait_capped"] is False
     assert report["pipeline"]["forecast_ledger_id"] == "ledger-1"
     assert "error" not in report
 
@@ -80,11 +81,16 @@ def test_a_long_horizon_is_capped_so_the_job_cannot_hang():
     get = make_get(clock, pipeline_payload(target), [{"total": 0}, {"total": 1}])
 
     report = freeze_and_resolve.freeze_and_resolve(
-        "http://test", get=get, sleep=clock.sleep, now=clock.now, max_wait_seconds=240
+        "http://test", get=get, sleep=clock.sleep, now=clock.now
     )
 
-    assert clock.slept == [240]
-    assert report["wait_seconds"] == 240
+    assert clock.slept == [freeze_and_resolve.MAX_WAIT_SECONDS] == [420]
+    assert report["wait_seconds"] == 420
+    # a capped wait must be labelled, and must not claim the new forecast was evaluated
+    assert report["wait_capped"] is True
+    assert report["wait_required_seconds"] > 420
+    assert report["this_run_resolved"] is False
+    assert report["new_forecast_pending"] is True
 
 
 def test_no_frozen_forecast_is_reported_without_waiting():
@@ -215,6 +221,7 @@ def test_it_actually_resolves_a_due_forecast_from_the_ledger(monkeypatch):
     )
 
     assert report["resolution"]["resolved_count"] == 1
+    assert report["this_run_resolved"] is False  # the resolved row was an older id
     assert report["ledger_after"]["resolved"] == 1
     assert any(step["step"] == "resolve_due_forecasts" for step in report["steps"])
 
@@ -243,3 +250,26 @@ def test_it_falls_back_to_a_working_interval_and_records_the_failed_one():
     assert "stale" in report["pipeline_attempts"][0]["stages"]["market_data"]["errors"][0]
     # the wait is derived from the successful attempt, not the failed one
     assert clock.slept == [pytest.approx(65.0, abs=0.1)]
+
+
+def test_it_reports_when_the_run_s_own_forecast_was_the_row_resolved(monkeypatch):
+    frozen = "frozen-this-run"
+    clock = FakeClock()
+    target = NOW + timedelta(seconds=60)
+    monkeypatch.setattr(
+        freeze_and_resolve,
+        "resolve_pending",
+        lambda **kwargs: {
+            "due_count": 1, "attempted": 1, "resolved_count": 1,
+            "resolved": [{"forecast_id": frozen, "direction_correct": True}],
+            "errors": [], "candle_fallback_count": 0,
+        },
+    )
+    get = make_get(clock, pipeline_payload(target, ledger_id=frozen), [{"total": 0}, {"total": 1}])
+
+    report = freeze_and_resolve.freeze_and_resolve(
+        "http://test", get=get, sleep=clock.sleep, now=clock.now
+    )
+
+    assert report["this_run_resolved"] is True
+    assert report["new_forecast_pending"] is False
