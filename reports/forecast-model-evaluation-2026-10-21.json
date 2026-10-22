@@ -1,0 +1,48 @@
+{
+  "batch_run_id": 39610582675,
+  "generated_at": "2026-10-22",
+  "valid_trials": 100,
+  "original_forecast": {
+    "trials": 100,
+    "mean_absolute_price_error_pct": 0.063793,
+    "direction_matches": 44,
+    "direction_accuracy_pct": 44.0,
+    "within_predefined_price_tolerance": 37,
+    "strict_pass_count": 37,
+    "strict_pass_rate_pct": 37.0,
+    "within_predefined_price_tolerance_rate_pct": 37.0
+  },
+  "zero_return_baseline_all_trials": {
+    "mean_absolute_price_error_pct": 0.04812
+  },
+  "chronological_split": {
+    "training_trials": 70,
+    "holdout_trials": 30,
+    "selection_metric": "training mean absolute price error percentage"
+  },
+  "selected_candidate_weights": {
+    "momentum": 0.0,
+    "technical_bias": 0.01,
+    "news_sentiment": 0.0
+  },
+  "selected_candidate_training_metrics": {
+    "mean_absolute_price_error_pct": 0.057762,
+    "direction_accuracy_pct": 40.0
+  },
+  "selected_candidate_holdout_metrics": {
+    "mean_absolute_price_error_pct": 0.027016,
+    "direction_accuracy_pct": 20.0
+  },
+  "zero_return_holdout_metrics": {
+    "mean_absolute_price_error_pct": 0.024944,
+    "direction_accuracy_pct": 13.33
+  },
+  "candidate_beats_baseline_on_holdout": false,
+  "decision": "DO_NOT_DEPLOY",
+  "notes": [
+    "Candidate weights selected using only trials 001-070; trials 071-100 are holdout.",
+    "Selected candidate did not beat the zero-return baseline on holdout price error.",
+    "This exploratory test is not evidence of profitable trading; do not raise confidence or enable live orders.",
+    "Trial reports span roughly 8 hours and may be temporally dependent."
+  ]
+}
