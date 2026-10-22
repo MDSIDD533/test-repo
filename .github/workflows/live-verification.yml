@@ -167,9 +167,18 @@ jobs:
           if trial.exists() and trial.stat().st_size > 0:
               try:
                   raw = trial.read_text()
-                  start = raw.find("{")
                   decoder = json.JSONDecoder()
-                  data, _ = decoder.raw_decode(raw[start:]) if start >= 0 else ({}, 0)
+                  documents, index = [], raw.find("{")
+                  # The runner prints a FORECAST_LOCKED document and then a
+                  # FINAL_COMPARISON document; the last one has the outcome.
+                  while index >= 0 and index < len(raw):
+                      try:
+                          document, consumed = decoder.raw_decode(raw[index:])
+                      except json.JSONDecodeError:
+                          break
+                      documents.append(document)
+                      index = raw.find("{", index + consumed)
+                  data = documents[-1] if documents else {}
                   forecast = data.get("forecast") or {}
                   comparison = data.get("comparison") or {}
                   observation = data.get("actual_observation") or {}
@@ -192,7 +201,25 @@ jobs:
           log = evidence / "playwright.log"
           if log.exists() and log.stat().st_size > 0:
               text = log.read_text(errors="replace")
-              tail = "\n".join(text.strip().splitlines()[-25:])
+              # Surface the actual failure reasons, not just the summary lines.
+              interesting = [
+                  line.strip() for line in text.splitlines()
+                  if any(token in line for token in
+                         ("Error:", "Chart never rendered", "Timed out", "expect(", "Market data unavailable"))
+              ]
+              seen, unique = set(), []
+              for line in interesting:
+                  key = line[:180]
+                  if key not in seen:
+                      seen.add(key)
+                      unique.append(line[:400])
+              if unique:
+                  lines.append("Failure reasons:")
+                  lines.append("")
+                  for line in unique[:12]:
+                      lines.append(f"- `{line}`")
+                  lines.append("")
+              tail = "\n".join(text.strip().splitlines()[-12:])
               lines.append("```")
               lines.append(tail)
               lines.append("```")

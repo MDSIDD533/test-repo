@@ -30,6 +30,8 @@ if str(ROOT) not in sys.path:
 
 import requests
 
+from app.market import COINBASE_GRANULARITIES
+
 class ProviderBlocked(Exception):
     """The provider refused this network location (HTTP 451). Not a code defect."""
 

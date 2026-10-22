@@ -22,7 +22,17 @@ async function loadChart(page) {
   page.on('pageerror', (error) => pageErrors.push(String(error)));
   await page.goto('/chart', { waitUntil: 'domcontentloaded' });
   // The REST load is what populates the candle count.
-  await expect(page.locator('#candleCount')).not.toHaveText('—', { timeout: 90000 });
+  try {
+    await expect(page.locator('#candleCount')).not.toHaveText('—', { timeout: 90000 });
+  } catch (error) {
+    const badge = await page.locator('#connBadge').innerText().catch(() => 'unavailable');
+    const status = await page.locator('#statusText').innerText().catch(() => 'unavailable');
+    const library = await page.evaluate(() => Boolean(window.LightweightCharts)).catch(() => false);
+    throw new Error(
+      `Chart never rendered candles. badge="${badge}" status="${status}" ` +
+      `chart_library_loaded=${library} page_errors=${JSON.stringify(pageErrors)}`
+    );
+  }
   return pageErrors;
 }
 
