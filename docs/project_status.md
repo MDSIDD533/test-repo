@@ -4,7 +4,7 @@ Branch: `arena/a852519f-test-repo` (branched from `main` at `d0101156acc5d23801a
 
 Overall status: **PARTIALLY COMPLETE**.
 
-The checklist score is **90.9%**, but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
+The checklist score is **93.9%**, but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
 
 ## 1. Inspection findings
 
@@ -28,6 +28,17 @@ The checklist score is **90.9%**, but the system is not complete because several
 - The stored 100-trial experiment results are preserved exactly; no new live trials were run in this sandbox.
 
 The Testing category gained one item this batch (provider-layer tests), so the denominator is now 82 rather than 81. Earlier percentages in git history used 81 items and are not directly comparable.
+
+## 1a. Why some checks cannot run here, and where they do run
+
+The development sandbox has no browser and cannot reach Binance or CoinDesk. Rather than leave those claims permanently unverified, they are automated in `.github/workflows/live-verification.yml`, which runs on GitHub-hosted runners where both are available:
+
+- `scripts/live_verification.py` — live spot ticker, 1m/5m/1h/4h/1d kline uniformity and alignment, a real kline WebSocket message, the news feed, and every local endpoint (including that the pipeline froze a forecast and returned `NO TRADE`).
+- `tests/browser/chart.spec.js` — real Chromium: candles render, the badge never says `LIVE` unless a socket opened, 1h/4h/1d candles are exactly 3600/14400/86400 seconds apart, timeframe switching updates every label, and a manual refresh preserves the zoomed viewport.
+- `tests/browser/dashboard.spec.js` — no JavaScript errors, the rejected experiment is labelled, the ledger and paper panels disclose real state, and the agent pipeline shows real stage statuses.
+- One real frozen two-minute trial via the existing runner.
+
+The workflow posts its results as a pull-request comment. Until it has run against a commit, the corresponding items are scored 0.5 (implemented, not yet verified) rather than 1.
 
 ## 2. Checklist scoring method
 
@@ -56,13 +67,13 @@ The overall percentage is the sum of item scores divided by the number of items.
 | 11 | Stale-feed indication | 1 | `STALE_AFTER_MS`, `checkStreamHealth` |
 | 12 | Never show LIVE while disconnected | 1 | `rest: 'REST ONLY'`, `offline`, tests |
 | 13 | All nine timeframes sent exactly to backend | 1 | `test_market_intervals` parametrized over 9 intervals |
-| 14 | 1h candle width verified against live Binance | 0 | backend/fixture tests only; Binance unreachable |
+| 14 | 1h candle width verified against live Binance | 0.5 | automated in `live-verification` (asserts 3600s spacing on live data); not yet run |
 | 15 | Title, symbol, timeframe and price update | 1 | `updateTitle`, DOM tests |
 | 16 | Analysis refreshed on interval change | 1 | `/api/analyze?interval=` plus response check |
 | 17 | Old markers/levels cleared on interval change | 1 | `load` clears series and state |
-| 18 | Browser-level smooth live verification | 0 | no browser in sandbox |
+| 18 | Browser-level smooth live verification | 0.5 | Playwright suite written (candles, badge honesty, 1h/4h/1d spacing, zoom preservation); not yet run |
 
-**Chart: 15.5 / 18 = 86.1%**
+**Chart: 16.5 / 18 = 91.7%**
 
 ## 4. Agents
 
@@ -181,7 +192,7 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 
 | # | Item | Score | Evidence |
 |---|---|---|---|
-| 1 | Backend unit tests | 1 | 210 passing |
+| 1 | Backend unit tests | 1 | 232 passing |
 | 2 | Chart logic tests | 1 | 18 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers; `requests.get` replaced in provider tests |
@@ -190,10 +201,10 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 | 11 | Provider-layer parsing and error contract | 1 | `test_market_provider`: endpoint fallback, schema drift → `MarketDataError` |
 | 7 | Paper/backtest tests | 1 | fees, limits, priority |
 | 8 | Application startup verified | 1 | uvicorn; `/api/health`, `/chart`, `/chart-core.js` returned 200 |
-| 9 | Browser-level chart test | 0 | no browser |
+| 9 | Browser-level chart test | 0.5 | `tests/browser/*.spec.js` + `live-verification` workflow; not yet executed |
 | 10 | Failure logs inspected | 1 | chart string mismatch and metric expectations fixed |
 
-**Testing: 10 / 11 = 90.9%**
+**Testing: 10.5 / 11 = 95.5%**
 
 ## 8. Documentation
 
@@ -232,6 +243,8 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 - A live-server smoke test wrote one **synthetic** ledger record through the API (never real market data), resolved it, saw `direction_accuracy_pct = 100.0` for that single record, then deleted the temporary `runtime/` file. This verifies the HTTP path only; it is not evidence of forecast skill.
 
 ## 10. NOT VERIFIED / blockers
+
+0. **The `live-verification` workflow has not completed a run yet.** It is written, its pure logic is unit-tested (21 tests), and its JavaScript parses, but no evidence has been collected from Chromium or live Binance at the time of writing. That is why browser and 1h-against-live-Binance items score 0.5, not 1.
 
 1. **Live browser chart:** no browser or display server is available. Smoothness, zoom preservation, and real socket reconnect UX are not browser-verified.
 2. **Live Binance data:** Binance is unreachable from this sandbox (TLS/connection failure). Real 1h stream behavior and live provider latency are not verified.

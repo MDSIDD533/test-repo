@@ -66,6 +66,50 @@ The stored aggregate report is `reports/forecast-model-evaluation-2026-10-21.jso
 - Backtest applies configurable fees/slippage and conservatively assumes the stop is hit first when one candle touches both stop and target.
 - Backtests remain simplified: no order-book depth, spread, funding (spot) or intrabar tick data.
 
+## How to verify this yourself
+
+Three levels, in increasing order of what they can prove.
+
+### 1. Offline (works anywhere, no network, no browser)
+
+    python -m pytest -q
+    node --test static/chart-core.test.js
+
+This covers chart logic, agent contracts, the evaluator, paper accounting, the ledger and provider *parsing* (with `requests.get` replaced by a fake). It proves the code behaves correctly against fixtures. It cannot prove Binance behaves as documented, and it cannot see a browser render.
+
+### 2. Real providers + real Chromium (GitHub Actions)
+
+The development sandbox has no browser and cannot reach Binance, so the live claims are verified by `.github/workflows/live-verification.yml`. That workflow:
+
+- installs Chromium via Playwright,
+- runs `scripts/live_verification.py`, which contacts Binance for a spot ticker, 1m/5m/1h/4h/1d klines, a live kline WebSocket and the news feed, and checks every local endpoint,
+- runs **one** real frozen two-minute trial with `scripts/two_minute_forecast_test.py`,
+- drives the app in Chromium: loads `/chart`, asserts candles render, asserts the badge never says `LIVE` unless a socket opened, switches 1m/1h/4h, checks that 1h/4h/1d candles are exactly 3600/14400/86400 seconds apart and aligned, and checks that a manual refresh does not reset the zoom,
+- posts the results as a comment on the pull request and uploads screenshots and JSON evidence as an artifact.
+
+Trigger it with **Actions → Live verification (browser + real providers) → Run workflow**, or it runs automatically when the files it verifies change. A run takes a few minutes.
+
+Read the numbers as: a single trial proves the freeze→observe→compare mechanics, not skill.
+
+### 3. Your own machine (full fidelity)
+
+    python -m venv .venv && .venv/bin/pip install -r requirements.txt
+    .venv/bin/python -m uvicorn app.main:app --reload
+    # open http://127.0.0.1:8000/chart
+
+    # in a second terminal, with the server running:
+    python scripts/live_verification.py --out evidence/provider.json
+    python scripts/two_minute_forecast_test.py BTCUSDT | tee evidence/trial.json
+    python scripts/resolve_forecasts.py --dry-run
+
+For the browser suite locally:
+
+    npm install --no-save @playwright/test
+    npx playwright install --with-deps chromium
+    npx playwright test
+
+Nothing in levels 2 or 3 places real orders. `scripts/resolve_forecasts.py` only reads public prices and appends to the local ledger.
+
 ## Run locally
 
 Python 3.11+ recommended.
@@ -87,8 +131,9 @@ Copy `.env.example` values into your environment if you want to change paper ris
 
 Current verified baseline (sandbox, Python 3.11.2, Node 22.22.3):
 
-- Python: **210 passed**.
+- Python: **232 passed**.
 - JavaScript chart core: **18 passed**.
+- Browser and live-provider checks: run by the `live-verification` workflow, which requires network access and Chromium.
 - GitHub Actions `tests` workflow: green on the latest pushed commit at time of writing; the status of the newest commit must always be checked separately.
 
 Tests mock market data. They do not require live Binance availability. Provider-layer tests replace `requests.get`, so URL selection, endpoint fallback, kline parsing and the `MarketDataError` contract are covered without network access; every test also gets a private paper-state and ledger file. The chart-core tests cover message validation, 1h alignment, candle ordering/de-duplication, stale detection, symbol/timeframe switching, superseded callbacks, reconnect backoff and retry limits.
@@ -115,7 +160,7 @@ Tests mock market data. They do not require live Binance availability. Provider-
 
 ## Known limitations and blockers
 
-- Browser-level verification of the live chart was not performed. The chart logic is unit-tested and served correctly, but visual smoothness, zoom preservation during updates and real WebSocket behavior in a browser remain **NOT VERIFIED**.
+- Browser-level verification and live-provider checks are **NOT VERIFIED from the development sandbox**, which has no browser and cannot reach Binance. They are automated in `.github/workflows/live-verification.yml`; see "How to verify this yourself" above. The workflow has to have run at least once against the current commit before you may treat those claims as verified.
 - Binance and CoinDesk are unreachable from the development sandbox. Real provider behavior, the 1h stream against live Binance, and research availability remain **NOT VERIFIED**.
 - The original 100-trial artifacts are not stored in the repository; only the aggregate evaluation report is available.
 - Prediction in the agent pipeline is direction-only and uncalibrated. The two-minute experiment is the only point-forecast experiment, and it did not beat its baseline.

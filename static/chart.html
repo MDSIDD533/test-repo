@@ -58,6 +58,7 @@
     connection: 'idle',
     warnings: [],
   };
+  let wsEverOpened = false;
 
   if (!Core) {
     document.getElementById('statusText').textContent = 'Chart core failed to load; refresh the page.';
@@ -249,6 +250,7 @@
 
   function mapStreamState(snapshot) {
     if (!snapshot) return;
+    if (snapshot.state === 'connected' || snapshot.state === 'live') wsEverOpened = true;
     if (snapshot.state === 'connecting') {
       setConnection('connecting', 'Connecting live stream for ' + snapshot.symbol + ' ' + snapshot.interval + '…');
     } else if (snapshot.state === 'connected') {
@@ -436,6 +438,24 @@
     if (!document.hidden) load({ auto: true });
   }, AUTO_REFRESH_MS);
   setInterval(checkStreamHealth, 5000);
+
+  // Read-only diagnostics for automated browser verification. It exposes no
+  // control surface: every value is derived from existing state.
+  window.__chartDebug = {
+    wsEverOpened: function () { return wsEverOpened; },
+    snapshot: function () {
+      return {
+        connection: state.connection,
+        key: state.renderedKey,
+        candles: state.candles.length,
+        limit: state.limit,
+        hasFit: state.hasFit,
+      };
+    },
+    visibleRange: function () {
+      return state.chart ? state.chart.timeScale().getVisibleLogicalRange() : null;
+    },
+  };
 
   load({ auto: false });
 })();

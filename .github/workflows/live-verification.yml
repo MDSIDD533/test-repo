@@ -1,0 +1,232 @@
+name: Live verification (browser + real providers)
+
+# The development sandbox has no browser and cannot reach Binance, so the
+# claims that matter most can only be checked where there is internet access.
+# This workflow runs against real providers, drives a real Chromium, and posts
+# the evidence back onto the pull request.
+#
+# Cost control: this job takes a few minutes, never hours, and is additionally
+# limited by a hard timeout and a concurrency group.
+
+on:
+  push:
+    paths:
+      - ".github/workflows/live-verification.yml"
+      - "scripts/live_verification.py"
+      - "tests/browser/**"
+      - "playwright.config.js"
+      - "static/chart.html"
+      - "static/chart-core.js"
+      - "static/index.html"
+      - "app/market.py"
+      - "app/main.py"
+      - "app/news_provider.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: live-verification-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Real provider + browser verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BASE_URL: http://127.0.0.1:8000
+      FORECAST_LEDGER_PATH: ${{ github.workspace }}/runtime/forecast_ledger.jsonl
+      PAPER_STATE_PATH: ${{ github.workspace }}/runtime/paper_state.json
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: python -m pip install -q -r requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Chromium for Playwright
+        run: |
+          npm install --no-save --no-fund @playwright/test@1.48.2
+          npx playwright install --with-deps chromium
+
+      - name: Start the application
+        run: |
+          mkdir -p evidence runtime
+          nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > evidence/uvicorn.log 2>&1 &
+          for attempt in $(seq 1 40); do
+            if curl -sf "$BASE_URL/api/health" > /dev/null; then
+              echo "Application is up after ${attempt}s"
+              curl -s "$BASE_URL/api/health"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Application did not start" >&2
+          tail -50 evidence/uvicorn.log >&2
+          exit 1
+
+      - name: Verify real providers and server endpoints
+        run: |
+          set +e
+          python scripts/live_verification.py --out evidence/provider.json
+          echo "PROVIDER_EXIT=$?" >> "$GITHUB_ENV"
+          exit 0
+
+      - name: Run one real frozen two-minute trial
+        run: |
+          set +e
+          python scripts/two_minute_forecast_test.py BTCUSDT > evidence/trial.json 2> evidence/trial.err
+          echo "TRIAL_EXIT=$?" >> "$GITHUB_ENV"
+          exit 0
+
+      - name: Browser verification with Chromium
+        run: |
+          set +e
+          npx playwright test 2>&1 | tee evidence/playwright.log
+          echo "PLAYWRIGHT_EXIT=${PIPESTATUS[0]}" >> "$GITHUB_ENV"
+          exit 0
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-verification-evidence
+          path: |
+            evidence/**
+            runtime/**
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish results to the pull request
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+
+          evidence = Path("evidence")
+          lines = ["## Live verification results", ""]
+          lines.append(f"Commit `{os.environ.get('GITHUB_SHA', '')[:7]}` · run `{os.environ.get('GITHUB_RUN_ID', '')}`")
+          lines.append("")
+
+          provider = evidence / "provider.json"
+          if provider.exists():
+              report = json.loads(provider.read_text())
+              summary = report.get("summary", {})
+              lines.append("### Real providers and server endpoints")
+              lines.append("")
+              lines.append(f"Passed **{summary.get('passed', 0)}** · failed **{summary.get('failed', 0)}** · "
+                           f"overall **{'PASS' if summary.get('ok') else 'FAIL'}**")
+              lines.append("")
+              lines.append("| check | result | detail |")
+              lines.append("|---|---|---|")
+              for check in report.get("checks", []):
+                  status = {"pass": "PASS", "fail": "FAIL", "skip": "SKIP"}.get(check["status"], "?")
+                  detail = check.get("detail")
+                  if check["status"] == "fail":
+                      text = str(check.get("error", ""))[:300]
+                  elif isinstance(detail, dict):
+                      keep = {k: detail[k] for k in
+                              ("candles", "distinct_deltas", "direction", "action",
+                               "total", "messages_received", "items") if k in detail}
+                      text = json.dumps(keep) if keep else "ok"
+                  else:
+                      text = "ok"
+                  lines.append(f"| {check['name']} | **{status}** | `{text}` |")
+              lines.append("")
+          else:
+              lines.append("### Real providers and server endpoints")
+              lines.append("")
+              lines.append("`evidence/provider.json` was not produced.")
+
+          trial = evidence / "trial.json"
+          lines.append("")
+          lines.append("### One real frozen two-minute trial")
+          lines.append("")
+          if trial.exists() and trial.stat().st_size > 0:
+              try:
+                  data = json.loads(trial.read_text())
+                  forecast = data.get("forecast") or {}
+                  comparison = data.get("comparison") or {}
+                  observation = data.get("actual_observation") or {}
+                  lines.append(f"- Forecast direction: **{forecast.get('direction')}** "
+                               f"(created `{forecast.get('forecast_created_at')}`)")
+                  lines.append(f"- Baseline: {comparison.get('baseline_price')} → actual: {comparison.get('actual_price')}")
+                  lines.append(f"- Observed via `{observation.get('source')}`, offset "
+                               f"{observation.get('time_difference_seconds')}s")
+                  lines.append("")
+                  lines.append("A single trial proves the mechanics (freeze → wait → observe → compare). "
+                               "It says **nothing** about skill or accuracy.")
+              except Exception as exc:  # noqa: BLE001
+                  lines.append(f"Trial output could not be parsed: `{exc}`")
+          else:
+              lines.append("The trial did not produce output (see the job log and `evidence/trial.err`).")
+
+          lines.append("")
+          lines.append("### Browser verification (real Chromium)")
+          lines.append("")
+          log = evidence / "playwright.log"
+          if log.exists() and log.stat().st_size > 0:
+              text = log.read_text(errors="replace")
+              tail = "\n".join(text.strip().splitlines()[-25:])
+              lines.append("```")
+              lines.append(tail)
+              lines.append("```")
+          else:
+              lines.append("Playwright produced no log.")
+
+          lines.append("")
+          lines.append(f"Artifacts: `live-verification-evidence` (screenshots, traces, JSON). "
+                       f"Exit codes — provider `{os.environ.get('PROVIDER_EXIT')}`, "
+                       f"trial `{os.environ.get('TRIAL_EXIT')}`, browser `{os.environ.get('PLAYWRIGHT_EXIT')}`.")
+
+          body = "\n".join(lines)
+          Path("evidence/comment.md").write_text(body)
+          print(body)
+
+          if not os.environ.get("GITHUB_HEAD_REF") and os.environ.get("GITHUB_EVENT_NAME") != "push":
+              print("Not a pull request context; skipping comment.")
+              raise SystemExit(0)
+
+          branch = os.environ.get("GITHUB_HEAD_REF") or os.environ.get("GITHUB_REF_NAME", "")
+          found = subprocess.run(
+              ["gh", "pr", "list", "--head", branch, "--state", "open", "--json", "number"],
+              capture_output=True, text=True,
+          )
+          try:
+              numbers = json.loads(found.stdout or "[]")
+          except json.JSONDecodeError:
+              numbers = []
+          if not numbers:
+              print("No open pull request for this branch; comment skipped.")
+              raise SystemExit(0)
+          number = numbers[0]["number"]
+          subprocess.run(["gh", "pr", "comment", str(number), "--body-file", "evidence/comment.md"], check=False)
+          PY
+
+      - name: Fail the job when a real check failed
+        if: always()
+        run: |
+          failed=0
+          [ "${PROVIDER_EXIT:-1}" != "0" ] && failed=1
+          [ "${TRIAL_EXIT:-1}" != "0" ] && failed=1
+          [ "${PLAYWRIGHT_EXIT:-1}" != "0" ] && failed=1
+          if [ "$failed" = "1" ]; then
+            echo "One or more live checks failed (provider=$PROVIDER_EXIT trial=$TRIAL_EXIT browser=$PLAYWRIGHT_EXIT)"
+            exit 1
+          fi
+          echo "All live checks passed"
