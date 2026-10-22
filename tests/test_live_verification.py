@@ -169,3 +169,18 @@ def test_run_check_records_pass_details():
 
     assert result["status"] == "pass"
     assert result["detail"] == {"candles": 3}
+
+
+def test_a_skipped_critical_check_is_not_a_failure_but_is_reported():
+    summary = verify.summarize(
+        [
+            {"name": "binance", "status": "skip", "critical": True},
+            {"name": "coinbase", "status": "pass", "critical": True},
+        ]
+    )
+
+    assert summary["ok"] is True
+    assert summary["failed"] == 0
+    assert summary["skipped"] == 1
+    assert summary["critical_failed"] == []
+    assert summary["critical_skipped"] == ["binance"]

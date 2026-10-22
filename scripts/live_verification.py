@@ -122,13 +122,17 @@ def validate_ws_kline(message: dict[str, Any], symbol: str, interval: str) -> li
 def summarize(checks: list[dict[str, Any]]) -> dict[str, Any]:
     """Fold check results into counts. Only ``critical`` checks gate the exit code."""
     critical = [check for check in checks if check.get("critical", True)]
-    failed = [check["name"] for check in critical if check["status"] != "pass"]
+    # A skip is an environment restriction with a recorded reason; it is not a
+    # pass, but it must not be reported as a defect either.
+    failed = [check["name"] for check in critical if check["status"] == "fail"]
+    skipped = [check["name"] for check in critical if check["status"] == "skip"]
     return {
         "total": len(checks),
         "passed": sum(1 for check in checks if check["status"] == "pass"),
         "failed": sum(1 for check in checks if check["status"] == "fail"),
         "skipped": sum(1 for check in checks if check["status"] == "skip"),
         "critical_failed": failed,
+        "critical_skipped": skipped,
         "ok": not failed,
     }
 

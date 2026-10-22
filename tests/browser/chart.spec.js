@@ -36,12 +36,14 @@ async function loadChart(page) {
   return pageErrors;
 }
 
-test('loads real candles from Binance and renders a valid chart', async ({ page }) => {
+test('loads real candles from a named provider and renders a valid chart', async ({ page }) => {
   const pageErrors = await loadChart(page);
 
   const count = Number(await page.locator('#candleCount').innerText());
   expect(count).toBeGreaterThanOrEqual(35);
-  expect(await page.locator('#dataSource').innerText()).toContain('Binance');
+  const source = await page.locator('#dataSource').innerText();
+  expect(source).toMatch(/binance|coinbase/i);
+  expect(source).toMatch(/5m/);
 
   const price = await page.locator('#currentPrice').innerText();
   expect(Number(price.replace(/,/g, ''))).toBeGreaterThan(0);

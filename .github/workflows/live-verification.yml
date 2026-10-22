@@ -179,6 +179,9 @@ jobs:
                       documents.append(document)
                       index = raw.find("{", index + consumed)
                   data = documents[-1] if documents else {}
+                  if data.get("error"):
+                      lines.append(f"**The trial failed:** `{data['error']}`")
+                      lines.append("")
                   forecast = data.get("forecast") or {}
                   comparison = data.get("comparison") or {}
                   observation = data.get("actual_observation") or {}

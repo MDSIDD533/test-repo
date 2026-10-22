@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.market import candles
+from app.market import candles, provider_used
 from app.analysis import analyze_candles
 from app.news_provider import fetch_crypto_news
 from app.short_horizon_forecast import compare_forecast, make_two_minute_forecast
@@ -61,9 +61,14 @@ def _coinbase_btc_candles(limit: int = 40) -> list[dict[str, float]]:
 
 
 def fetch_experiment_candles(symbol: str, limit: int) -> tuple[list[dict[str, float]], str]:
-    """Use Binance first; fall back to Coinbase for BTCUSDT observation trials."""
+    """Fetch 1m candles and report the provider that actually served them.
+
+    ``app.market.candles`` falls back to Coinbase for BTCUSDT when Binance is
+    unreachable, so the provider must be read back rather than assumed.
+    """
     try:
-        return candles(symbol, "1m", limit), "binance"
+        rows = candles(symbol, "1m", limit)
+        return rows, provider_used(symbol, "1m") or "binance"
     except Exception as binance_error:
         if symbol != "BTCUSDT":
             raise RuntimeError(
