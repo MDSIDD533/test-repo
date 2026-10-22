@@ -1,5 +1,8 @@
 from pathlib import Path
 import re
+import shutil
+import subprocess
+import tempfile
 import unittest
 
 
@@ -105,6 +108,18 @@ class LiveChartPageTests(unittest.TestCase):
             re.compile(r'<iframe[^>]*id="chartFrame"[^>]*loading="eager"', re.DOTALL),
         )
         self.assertIn('src="/chart?embed=1"', self.dashboard)
+
+    def test_chart_inline_javascript_parses(self):
+        scripts = re.findall(r"<script>(.*?)</script>", self.chart, flags=re.DOTALL)
+        self.assertTrue(scripts, "Chart must contain its application script")
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node.js is not installed")
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".js", encoding="utf-8") as handle:
+            handle.write("\n".join(scripts))
+            handle.flush()
+            checked = subprocess.run([node, "--check", handle.name], capture_output=True, text=True)
+        self.assertEqual(checked.returncode, 0, checked.stderr[-1000:])
 
     def test_manual_refresh_button_is_available(self):
         self.assertIn('id="load"', self.chart)

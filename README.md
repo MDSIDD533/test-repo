@@ -84,7 +84,7 @@ Copy `.env.example` values into your environment if you want to change paper ris
 
 Current verified baseline (sandbox, Python 3.11.2, Node 22.22.3):
 
-- Python: **132 passed**.
+- Python: **133 passed**.
 - JavaScript chart core: **18 passed**.
 - GitHub Actions `tests` workflow: green on the latest pushed commit at time of writing; the status of the newest commit must always be checked separately.
 
@@ -129,3 +129,4 @@ There is no verified automatic sync workflow in this repository. Commits made he
 
 - [`docs/project_status.md`](docs/project_status.md) — checklist-based status, evidence, percentages and next steps.
 - [`docs/agent_pipeline.md`](docs/agent_pipeline.md) — stage contracts, confidence policy and implementation status.
+- [`reports/README.md`](reports/README.md) — recorded experiment, reproduction command and evaluation rules.

@@ -143,7 +143,7 @@ Verified locally with Python 3.11.2 and Node 22.22.3:
 
 ```text
 python -m pytest -q
-132 passed, 1 warning in 0.68s
+133 passed, 1 warning in 0.71s
 
 node --test static/chart-core.test.js
 # tests 18
@@ -168,7 +168,7 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 
 | # | Item | Score | Evidence |
 |---|---|---|---|
-| 1 | Backend unit tests | 1 | 132 passing |
+| 1 | Backend unit tests | 1 | 133 passing |
 | 2 | Chart logic tests | 1 | 18 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers |
