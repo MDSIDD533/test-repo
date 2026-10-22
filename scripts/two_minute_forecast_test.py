@@ -132,12 +132,15 @@ def fetch_actual_price_with_fallback(
         candidates = []
         for row in rows:
             close_time = float(row["time"]) + 60.0
-            difference = abs(close_time - target_time)
-            if close_time <= target_time + tolerance_seconds:
-                candidates.append((difference, close_time, float(row["close"])))
+            # Use only candles that had already closed by the target time. A
+            # later candle would leak post-horizon prices into the observation.
+            if close_time > target_time:
+                continue
+            difference = target_time - close_time
+            candidates.append((difference, close_time, float(row["close"])))
         if not candidates:
             raise RuntimeError(
-                f"No ticker and no completed candle near the target time. "
+                f"No ticker and no completed candle before the target time. "
                 f"Ticker error: {spot_error}"
             ) from spot_error
         difference, close_time, price = min(candidates, key=lambda item: item[0])

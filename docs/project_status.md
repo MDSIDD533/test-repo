@@ -90,7 +90,7 @@ The overall percentage is the sum of item scores divided by the number of items.
 |---|---|---|---|
 | 1 | 100 recorded two-minute trials | 1 | workflow `39610582675`, stored report |
 | 2 | Forecast frozen before outcome | 1 | runner writes forecast then sleeps 120s |
-| 3 | Exact/nearest target-timestamp rule | 1 | spot ticker preferred; nearest completed 1m candle used within 90s, offset recorded |
+| 3 | Exact/nearest target-timestamp rule | 1 | spot ticker preferred; nearest completed 1m candle before the target used within 90s; offset recorded |
 | 4 | Mean absolute price error | 1 | evaluator + report |
 | 5 | MAPE with defined denominator | 1 | `mean_absolute_percentage_error_pct` |
 | 6 | RMSE | 1 | `root_mean_squared_error_pct` |
@@ -143,7 +143,7 @@ Verified locally with Python 3.11.2 and Node 22.22.3:
 
 ```text
 python -m pytest -q
-133 passed, 1 warning in 0.71s
+134 passed, 1 warning in 0.73s
 
 node --test static/chart-core.test.js
 # tests 18
@@ -168,7 +168,7 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 
 | # | Item | Score | Evidence |
 |---|---|---|---|
-| 1 | Backend unit tests | 1 | 133 passing |
+| 1 | Backend unit tests | 1 | 134 passing |
 | 2 | Chart logic tests | 1 | 18 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers |

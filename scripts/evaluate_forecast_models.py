@@ -40,7 +40,7 @@ METRICS_DEFINITIONS = {
     ),
     "tolerance_pct": TOLERANCE_PCT,
     "brier_score": (
-        "mean((P(UP) - 1[actual direction is UP])^2); null when no valid probability exists"
+        "mean((P(UP) - 1[actual return > direction threshold])^2); null when no valid probability exists"
     ),
 }
 
@@ -230,7 +230,7 @@ def _summarize(
         for probability, actual, start in zip(probabilities, actuals, starts):
             if probability is None:
                 continue
-            actual_up = 1.0 if actual > start else 0.0
+            actual_up = 1.0 if (actual / start - 1) * 100 > DIRECTION_THRESHOLD_PCT else 0.0
             brier_values.append((probability - actual_up) ** 2)
         if brier_values:
             brier_score = round(statistics.mean(brier_values), 6)

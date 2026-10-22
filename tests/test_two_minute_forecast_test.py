@@ -104,3 +104,21 @@ def test_fallback_rejects_an_observation_outside_the_tolerance(monkeypatch):
         runner.fetch_actual_price_with_fallback(
             "BTCUSDT", "binance", 300.0, tolerance_seconds=30.0
         )
+
+
+def test_fallback_never_uses_a_candle_that_closed_after_the_target(monkeypatch):
+    import scripts.two_minute_forecast_test as runner
+
+    monkeypatch.setattr(
+        runner,
+        "fetch_experiment_spot_price",
+        lambda symbol, provider: (_ for _ in ()).throw(RuntimeError("ticker unavailable")),
+    )
+    # Candle starts at 120s and closes at 180s, after the 170s target.
+    monkeypatch.setattr(
+        runner,
+        "fetch_experiment_candles",
+        lambda symbol, limit: ([{"time": 120.0, "close": 100.0}], "test-provider"),
+    )
+    with pytest.raises(RuntimeError, match="before the target"):
+        runner.fetch_actual_price_with_fallback("BTCUSDT", "binance", 170.0)
