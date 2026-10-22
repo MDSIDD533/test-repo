@@ -223,6 +223,7 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 - The pipeline freezes each prediction in an append-only JSONL ledger before the report stage; tests confirm ordering, immutability and that a failed freeze is surfaced.
 - Dashboard shows the recorded failed experiment and the rejected deployment decision.
 - `GET /api/forecast/ledger` returned 200 with an empty, honest ledger state; resolving an unknown id returned 400 `unknown forecast_id`; the dashboard serves the ledger panel.
+- A live-server smoke test wrote one **synthetic** ledger record through the API (never real market data), resolved it, saw `direction_accuracy_pct = 100.0` for that single record, then deleted the temporary `runtime/` file. This verifies the HTTP path only; it is not evidence of forecast skill.
 
 ## 10. NOT VERIFIED / blockers
 
