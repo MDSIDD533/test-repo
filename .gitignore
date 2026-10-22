@@ -7,3 +7,6 @@ venv/
 .coverage
 dist/
 build/
+
+# Append-only local forecast ledger and other runtime state
+runtime/

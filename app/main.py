@@ -18,11 +18,19 @@ from app.prediction_agent import run_prediction_agent
 from app.risk_decision_agent import run_risk_decision_agent
 from app.report_agent import run_report_agent
 from app.short_horizon_forecast import make_two_minute_forecast
+from app.forecast_ledger import LedgerError, read_ledger, record_resolution
 
 ROOT = Path(__file__).resolve().parent.parent
 app = FastAPI(title='Crypto Spot Trading Analysis Agent', version='0.1.0', description='Analysis and paper trading only. Live trading is disabled.')
 class PaperOpenRequest(BaseModel):
     symbol: str = Field(min_length=3, max_length=30)
+
+
+class ForecastResolutionRequest(BaseModel):
+    observed_price: float = Field(gt=0)
+    observed_at: str | None = None
+    source: str = Field(default='manual_observation', min_length=1, max_length=80)
+    time_difference_seconds: float | None = None
 
 @app.get('/', response_class=HTMLResponse)
 def dashboard(): return (ROOT / 'static' / 'index.html').read_text(encoding='utf-8')
@@ -117,6 +125,45 @@ def two_minute_forecast_preview(symbol: str):
         raise HTTPException(status_code=502, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+@app.get('/api/forecast/ledger')
+def forecast_ledger(limit: int = Query(default=50, ge=1, le=500)):
+    """Return frozen forecasts and their resolutions.
+
+    The ledger is append-only on disk. This endpoint only folds events; it
+    never edits or deletes a forecast.
+    """
+    try:
+        data = read_ledger()
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f'Forecast ledger is unreadable: {exc}')
+    data['storage'] = 'append-only JSONL'
+    data['forecasts'] = data['forecasts'][:limit]
+    data['returned_forecasts'] = len(data['forecasts'])
+    return data
+
+
+@app.post('/api/forecast/ledger/{forecast_id}/resolve')
+def resolve_forecast(forecast_id: str, request: ForecastResolutionRequest):
+    """Append an observed outcome for a frozen forecast.
+
+    The caller supplies the observed price and its provenance. Nothing is
+    fetched here, so an outcome can never be silently back-filled with a price
+    from a different source than the one reported.
+    """
+    try:
+        return record_resolution(
+            forecast_id,
+            observed_price=request.observed_price,
+            observed_at=request.observed_at,
+            source=request.source,
+            time_difference_seconds=request.time_difference_seconds,
+        )
+    except LedgerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f'Forecast ledger write failed: {exc}')
+
 
 @app.get('/api/market/summary')
 def market_summary():

@@ -13,7 +13,7 @@ The code now follows the stage order in the diagram below. A stage that cannot r
 | Market Data | Validates injected candle payloads: fields, finite values, OHLC, ordering, gaps, freshness | Live provider availability is not verified in the sandbox |
 | Market Analysis | Rule-based EMA/RSI/MACD/ATR/structure and levels from validated candles | Heuristic, not a calibrated probability |
 | Research | CoinDesk RSS provider with source URL, timezone and 72h freshness checks; `ResearchUnavailable` becomes an `unavailable` stage | Live RSS could not be reached in the sandbox |
-| Prediction | Direction only, one-candle horizon, frozen creation time, reference price, features and model version; no point price or probability is fabricated. A separate 120-second preview endpoint returns an explicitly unrecorded point forecast. | Not calibrated; no persistent pipeline forecast ledger |
+| Prediction | Direction only, one-candle horizon, frozen creation time, reference price, features and model version; no point price or probability is fabricated. A separate 120-second preview endpoint returns an explicitly unrecorded point forecast. Successful predictions are frozen in an append-only ledger. | Not calibrated; ledger resolution is manual/scripted |
 | Risk & Decision | Reward/risk, ATR, configured limits, explicit authorization checks; fails closed | Always NO TRADE until a calibrated model is independently validated |
 | TimeTraveler | Reproducible historical-return bootstrap; labelled `simulation_only` and `not_an_observation` | Scenario frequencies are not win probabilities; costs not modeled |
 | Report | Combines validation, analysis, research, prediction, risk metrics, simulation summary, blockers and errors | Does not persist a durable report |

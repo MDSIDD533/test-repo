@@ -4,7 +4,7 @@ Branch: `arena/a852519f-test-repo` (branched from `main` at `d0101156acc5d23801a
 
 Overall status: **PARTIALLY COMPLETE**.
 
-The checklist score is **88.3%**, but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
+The checklist score is **89.5%**, but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
 
 ## 1. Inspection findings
 
@@ -72,7 +72,7 @@ The overall percentage is the sum of item scores divided by the number of items.
 | 4 | Research reports unavailability without inventing news | 1 | `ResearchUnavailable` + API test |
 | 5 | Prediction has a defined target/horizon | 1 | one candle, interval seconds |
 | 6 | Prediction supplies a point price or return | 0.5 | two-minute preview + experiment do; pipeline stage deliberately does not |
-| 7 | Pipeline stores forecasts before outcomes | 0 | no persistent pipeline ledger |
+| 7 | Pipeline stores forecasts before outcomes | 1 | `app/forecast_ledger.py`; frozen before report stage; append-only tests |
 | 8 | Prediction exposes model, features, freshness, limits | 1 | `prediction_agent` metadata |
 | 9 | Risk computes reward/risk, ATR and limits | 1 | `test_decision_agents` |
 | 10 | Risk fails closed on weak/unvalidated evidence | 1 | always NO TRADE without calibration/authorization |
@@ -82,7 +82,7 @@ The overall percentage is the sum of item scores divided by the number of items.
 | 14 | Dashboard shows actual stage state | 1 | `runAgentAnalysis`, `UNAVAILABLE` label |
 | 15 | End-to-end live-provider verification | 0 | Binance/CoinDesk unreachable here |
 
-**Agents: 12.5 / 15 = 83.3%**
+**Agents: 13.5 / 15 = 90.0%**
 
 ## 5. Prediction evaluation
 
@@ -143,7 +143,7 @@ Verified locally with Python 3.11.2 and Node 22.22.3:
 
 ```text
 python -m pytest -q
-134 passed, 1 warning in 0.73s
+170 passed, 1 warning in 0.87s
 
 node --test static/chart-core.test.js
 # tests 18
@@ -176,7 +176,7 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 
 | # | Item | Score | Evidence |
 |---|---|---|---|
-| 1 | Backend unit tests | 1 | 134 passing |
+| 1 | Backend unit tests | 1 | 170 passing |
 | 2 | Chart logic tests | 1 | 18 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers |
@@ -218,7 +218,9 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 - Paper account applies fees/slippage/risk limits and records costs.
 - Backtest includes configurable costs and conservative stop priority.
 - Evaluator computes MAE, MAPE, RMSE, direction metrics, confusion matrix, coverage, Brier and baselines.
+- The pipeline freezes each prediction in an append-only JSONL ledger before the report stage; tests confirm ordering, immutability and that a failed freeze is surfaced.
 - Dashboard shows the recorded failed experiment and the rejected deployment decision.
+- `GET /api/forecast/ledger` returned 200 with an empty, honest ledger state; resolving an unknown id returned 400 `unknown forecast_id`; the dashboard serves the ledger panel.
 
 ## 10. NOT VERIFIED / blockers
 
@@ -227,14 +229,14 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 3. **Live research:** CoinDesk RSS could not be reached; parsing is unit-tested, live availability is not.
 4. **Original artifacts:** the 100 trial JSON files are not in the repository; the enhanced evaluator has not been re-run on them.
 5. **New experiments:** no new live trials were run, so no new accuracy claim is made.
-6. **Persistence:** forecasts and paper trades are not stored in a durable database.
-7. **Pipeline forecast ledger:** the pipeline does not persist a frozen forecast; only the two-minute experiment runner does.
+6. **Persistence:** paper trades remain in memory; the forecast ledger is a local append-only JSONL file, not a database.
+7. **Automated resolution:** `scripts/resolve_forecasts.py` is tested with mocked observations but was not run against a live provider, and nothing schedules it.
 
 ## 11. Next highest-priority tasks
 
 1. Run the chart in a real browser against live Binance, record screenshots/console evidence, and verify 5m/15m/1h/4h switching, zoom preservation and reconnect behavior.
 2. Download the original 100 trial artifacts and re-run the enhanced evaluator to replace the aggregate-only report with full metrics on the real data.
-3. Add a durable forecast ledger (append-only JSONL/SQLite) so pipeline forecasts are frozen and later evaluated like the experiment.
+3. Schedule `scripts/resolve_forecasts.py` (or call it after each observation) so frozen forecasts accumulate resolved outcomes, then compare direction accuracy against a always-FLAT baseline.
 4. Add persistent paper-account storage and a restart test.
 5. Add structured request/stage logging and an operator-visible error log.
 6. Add an integration test against a recorded Binance fixture.

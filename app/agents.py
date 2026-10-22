@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 import uuid
 
+from app.forecast_ledger import record_forecast
+
 
 PIPELINE_STAGES = (
     "market_data",
@@ -145,6 +147,24 @@ def run_agent_pipeline(
             results.append(result)
             context["_stage_statuses"][stage_name] = result.status
             warnings.extend(result.warnings)
+
+            if stage_name == "prediction" and stage_status == "completed":
+                # Freeze the forecast before any downstream stage can see an
+                # outcome. A ledger failure is surfaced, never hidden.
+                try:
+                    entry = record_forecast(
+                        output, run_id=run_id, symbol=normalized_symbol
+                    )
+                    output["forecast_ledger_id"] = entry["forecast_id"]
+                    output["forecast_target_time"] = entry["target_time"]
+                except Exception as exc:
+                    message = (
+                        "prediction forecast was not frozen in the ledger: "
+                        f"{type(exc).__name__}: {exc}"
+                    )
+                    output["ledger_error"] = message
+                    result.warnings.append(message)
+                    warnings.append(message)
         except Exception as exc:
             # Agents can mark expected unavailability (for example, no news on
             # a quiet day) as `unavailable` without pretending it succeeded.

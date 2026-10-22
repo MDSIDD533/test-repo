@@ -31,3 +31,18 @@ def test_dashboard_inline_javascript_parses():
                 "Node.js syntax check failed. Context near parser location: "
                 + context + "\\n" + checked.stderr[-500:]
             )
+
+
+def test_dashboard_shows_the_forecast_ledger_honestly():
+    html = (Path(__file__).resolve().parents[1] / "static" / "index.html").read_text(encoding="utf-8")
+
+    assert 'id="ledgerPanel"' in html
+    assert "Forecasts are frozen before an outcome exists" in html
+    assert "append-only" in html
+    assert "No frozen forecasts yet" in html
+    assert "/api/forecast/ledger" in html
+    assert "loadForecastLedger" in html
+    # Accuracy must never be presented as skill by default.
+    assert "not evidence of skill" in html
+    # A missing freeze must be visible in the prediction card, not implied.
+    assert "NOT FROZEN" in html

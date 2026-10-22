@@ -19,6 +19,7 @@ A paper-only crypto spot analysis, market research, short-horizon forecasting an
 - `/` dashboard with scanner, signal analysis, paper account and per-stage agent output.
 - `/chart` interactive candlestick chart with 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h and 1d timeframes.
 - A 120-second forecast preview is available from the dashboard or `GET /api/forecast/two-minute/{symbol}`. It is explicitly unrecorded and uncalibrated; the frozen, evaluated experiment is the GitHub Actions trial runner.
+- The agent pipeline freezes its prediction into an **append-only forecast ledger** before the report stage runs. Resolutions are appended later as separate events; a frozen forecast is never edited or deleted.
 - Binance kline WebSocket updates the forming candle in place.
 - The previous socket is closed when the symbol or timeframe changes; late callbacks from superseded sockets are ignored.
 - Bounded exponential reconnection with a visible `RECONNECTING` / `OFFLINE` state.
@@ -34,7 +35,7 @@ A paper-only crypto spot analysis, market research, short-horizon forecasting an
 | Market Data | Validates candle fields, OHLC consistency, ordering, gaps, freshness and status | Working |
 | Market Analysis | Rule-based indicators: EMA 9/20/50/200, RSI, MACD, ATR, structure, support/resistance | Working |
 | Research | CoinDesk RSS provider with source/freshness/URL checks; no evidence is reported as `UNAVAILABLE` | Working when network is available; **NOT VERIFIED** from this sandbox |
-| Prediction | Direction only (`UP`/`DOWN`/`FLAT`), frozen `forecast_created_at`, horizon, reference price, model version and limitations. No point price or probability is fabricated | Working, uncalibrated |
+| Prediction | Direction only (`UP`/`DOWN`/`FLAT`), frozen `forecast_created_at`, horizon, reference price, model version and limitations. No point price or probability is fabricated. Each successful prediction is frozen in the ledger | Working, uncalibrated |
 | Risk Decision | Computes reward/risk, ATR volatility and authorization checks; always `NO TRADE` without independently calibrated evidence | Fail-closed |
 | TimeTraveler | Seeded historical-return bootstrap (100/500/1000 paths), explicitly labelled simulation | Working, not calibrated |
 | Report | Combines real stage statuses, validation, research, forecast, risk metrics, blockers and errors | Working |
@@ -50,6 +51,7 @@ Every pipeline stage can fail independently. Missing research is recorded as `un
   - zero-return baseline mean absolute price error: **0.048120%**
 - Chronological 70/30 evaluation: candidate holdout MAE **0.027016%** versus zero-return baseline **0.024944%**.
 - Decision: **`DO_NOT_DEPLOY`**. The candidate did not beat the baseline by the predeclared 5% relative margin.
+- `scripts/resolve_forecasts.py` appends observed outcomes for due ledger forecasts using the same spot-ticker-first, no-look-ahead observation rule. `--dry-run` shows what would be resolved.
 - `scripts/evaluate_forecast_models.py` now reports MAE, MAPE, RMSE, direction accuracy, UP/DOWN/FLAT precision/recall/F1, confusion matrix, coverage, invalid-trial count, strict pass rate, Brier score when probabilities exist, and zero-return/momentum/technical baselines. Holdout outcomes are never used for tuning.
 
 The stored aggregate report is `reports/forecast-model-evaluation-2026-10-21.json`. The individual trial artifacts are not in this repository, so the enhanced evaluator has not been re-run on the original 100 trials. That limitation is recorded rather than hidden.
@@ -84,7 +86,7 @@ Copy `.env.example` values into your environment if you want to change paper ris
 
 Current verified baseline (sandbox, Python 3.11.2, Node 22.22.3):
 
-- Python: **134 passed**.
+- Python: **170 passed**.
 - JavaScript chart core: **18 passed**.
 - GitHub Actions `tests` workflow: green on the latest pushed commit at time of writing; the status of the newest commit must always be checked separately.
 
@@ -100,6 +102,8 @@ Tests mock market data. They do not require live Binance availability. The chart
 - `GET /api/candle-signals/{symbol}?interval=5m&limit=200`
 - `GET /api/agents/run/{symbol}?interval=5m&simulation_count=100`
 - `GET /api/forecast/two-minute/{symbol}` (unrecorded preview)
+- `GET /api/forecast/ledger` (frozen forecasts, resolutions and summary)
+- `POST /api/forecast/ledger/{forecast_id}/resolve` (append an observed outcome)
 - `GET /api/reports/forecast-evaluation`
 - `GET /api/paper/account`
 - `GET /api/paper/trades`
@@ -114,6 +118,7 @@ Tests mock market data. They do not require live Binance availability. The chart
 - Binance and CoinDesk are unreachable from the development sandbox. Real provider behavior, the 1h stream against live Binance, and research availability remain **NOT VERIFIED**.
 - The original 100-trial artifacts are not stored in the repository; only the aggregate evaluation report is available.
 - Prediction in the agent pipeline is direction-only and uncalibrated. The two-minute experiment is the only point-forecast experiment, and it did not beat its baseline.
+- The forecast ledger is an append-only local JSONL file (`runtime/forecast_ledger.jsonl` by default, git-ignored). It is not a database, has no access control, and is not replicated. Resolution is a manual/scripted step; nothing resolves forecasts automatically.
 - Paper trades are in memory and reset on restart. There is no database, authentication, alert delivery or multi-user isolation.
 - No live trading remains a deliberate invariant. Any future live execution requires a separate safety-critical review, explicit authorization and tested order controls.
 
