@@ -9,7 +9,7 @@ on:
         default: "39610582675"
         type: string
   workflow_run:
-    workflows: ["Live two-minute forecast batch (100 trials)"]
+    workflows: ["Live two-minute forecast batch"]
     types: [completed]
 
 permissions:

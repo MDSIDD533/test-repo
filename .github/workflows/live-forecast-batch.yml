@@ -1,4 +1,4 @@
-name: Live two-minute forecast batch (100 trials)
+name: Live two-minute forecast batch
 
 # This workflow costs hours of runner time and is therefore manual-only.
 # A path change must never launch a live experiment automatically.
@@ -6,19 +6,60 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: 'Type RUN-100-TRIALS to authorize the live experiment'
+        description: 'Type RUN-LIVE-BATCH to authorize the live experiment'
         required: true
+        type: string
+      trials:
+        description: 'Total trials (must be divisible by 3)'
+        required: false
+        default: '150'
+        type: string
+      spacing_seconds:
+        description: 'Seconds between trials inside one shard (180 -> 60s global cadence)'
+        required: false
+        default: '180'
         type: string
 
 permissions:
   contents: read
 
 jobs:
-  batch-1:
-    name: Live trials 1-50
-    if: inputs.confirmation == 'RUN-100-TRIALS'
+  validate:
+    name: Validate batch parameters
+    if: inputs.confirmation == 'RUN-LIVE-BATCH'
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 5
+    outputs:
+      per_shard: ${{ steps.check.outputs.per_shard }}
+    steps:
+      - name: Check trial count
+        id: check
+        run: |
+          trials="${{ inputs.trials }}"
+          spacing="${{ inputs.spacing_seconds }}"
+          case "$trials" in (*[!0-9]*|'') echo "trials must be an integer"; exit 1;; esac
+          case "$spacing" in (*[!0-9]*|'') echo "spacing must be an integer"; exit 1;; esac
+          if [ "$trials" -lt 15 ] || [ "$trials" -gt 300 ]; then
+            echo "trials must be between 15 and 300"; exit 1
+          fi
+          if [ $((trials % 3)) -ne 0 ]; then
+            echo "trials must be divisible by 3 (three shards)"; exit 1
+          fi
+          if [ "$spacing" -lt 130 ]; then
+            echo "spacing below 130s would start a trial before the 120s horizon is observed"; exit 1
+          fi
+          echo "per_shard=$((trials / 3))" >> "$GITHUB_OUTPUT"
+          echo "Running $trials trials: 3 shards of $((trials / 3)), ${spacing}s apart inside a shard."
+
+  batch:
+    name: Live trials shard ${{ matrix.shard }}
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -26,15 +67,25 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
-      - name: Run trials 1-50, 5 minutes apart
+      - name: Run this shard's trials
         env:
           PYTHONUNBUFFERED: "1"
+          SHARD: ${{ matrix.shard }}
+          PER_SHARD: ${{ needs.validate.outputs.per_shard }}
+          SPACING: ${{ inputs.spacing_seconds }}
+          TRIALS: ${{ inputs.trials }}
         run: |
           mkdir -p forecast-batch-reports
-          for i in $(seq 1 50); do
+          first=$(( (SHARD - 1) * PER_SHARD + 1 ))
+          last=$(( SHARD * PER_SHARD ))
+          # Shards are staggered so the whole batch samples one trial per
+          # (spacing / 3) seconds instead of three at the same instant.
+          stagger=$(( (SHARD - 1) * SPACING / 3 ))
+          if [ "$stagger" -gt 0 ]; then sleep "$stagger"; fi
+          for i in $(seq "$first" "$last"); do
             trial_start=$(date +%s)
             printf -v label "%03d" "$i"
-            echo "===== TRIAL $i / 100 START $(date -u +%Y-%m-%dT%H:%M:%SZ) ====="
+            echo "===== TRIAL $i / $TRIALS START $(date -u +%Y-%m-%dT%H:%M:%SZ) ====="
             if python scripts/two_minute_forecast_test.py BTCUSDT > "forecast-batch-reports/trial-${label}.log" 2>&1; then
               code=0
             else
@@ -44,27 +95,28 @@ jobs:
               cp two_minute_forecast_report.json "forecast-batch-reports/trial-${label}.json"
             fi
             echo "$code" > "forecast-batch-reports/trial-${label}.exitcode"
-            tail -n 25 "forecast-batch-reports/trial-${label}.log" || true
-            echo "===== TRIAL $i / 100 END exit_code=$code $(date -u +%Y-%m-%dT%H:%M:%SZ) ====="
-            if [ "$i" -lt 50 ]; then
-              elapsed=$(($(date +%s) - trial_start))
-              remaining=$((300 - elapsed))
+            tail -n 20 "forecast-batch-reports/trial-${label}.log" || true
+            echo "===== TRIAL $i / $TRIALS END exit_code=$code $(date -u +%Y-%m-%dT%H:%M:%SZ) ====="
+            if [ "$i" -lt "$last" ]; then
+              elapsed=$(( $(date +%s) - trial_start ))
+              remaining=$(( SPACING - elapsed ))
               if [ "$remaining" -gt 0 ]; then sleep "$remaining"; fi
             fi
           done
-      - name: Upload reports for trials 1-50
+      - name: Upload this shard's reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: forecast-trials-001-050
+          name: forecast-trials-shard-${{ matrix.shard }}
           path: forecast-batch-reports/
           if-no-files-found: warn
 
-  batch-2:
-    name: Live trials 51-100
-    needs: batch-1
+  summarize:
+    name: Summarize the batch
+    needs: [validate, batch]
+    if: always() && needs.validate.result == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -72,36 +124,29 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
-      - name: Run trials 51-100, 5 minutes apart
-        env:
-          PYTHONUNBUFFERED: "1"
+      - name: Download every shard's reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: forecast-trials-shard-*
+          path: forecast-batch-reports
+          merge-multiple: true
+      - name: Summarize prediction accuracy honestly
         run: |
-          mkdir -p forecast-batch-reports
-          for i in $(seq 51 100); do
-            trial_start=$(date +%s)
-            printf -v label "%03d" "$i"
-            echo "===== TRIAL $i / 100 START $(date -u +%Y-%m-%dT%H:%M:%SZ) ====="
-            if python scripts/two_minute_forecast_test.py BTCUSDT > "forecast-batch-reports/trial-${label}.log" 2>&1; then
-              code=0
-            else
-              code=$?
-            fi
-            if [ -f two_minute_forecast_report.json ]; then
-              cp two_minute_forecast_report.json "forecast-batch-reports/trial-${label}.json"
-            fi
-            echo "$code" > "forecast-batch-reports/trial-${label}.exitcode"
-            tail -n 25 "forecast-batch-reports/trial-${label}.log" || true
-            echo "===== TRIAL $i / 100 END exit_code=$code $(date -u +%Y-%m-%dT%H:%M:%SZ) ====="
-            if [ "$i" -lt 100 ]; then
-              elapsed=$(($(date +%s) - trial_start))
-              remaining=$((300 - elapsed))
-              if [ "$remaining" -gt 0 ]; then sleep "$remaining"; fi
-            fi
-          done
-      - name: Upload reports for trials 51-100
+          set +e
+          python scripts/summarize_trial_batch.py forecast-batch-reports \
+            --output forecast-batch-summary.json > summary.txt 2>&1
+          code=$?
+          cat summary.txt
+          cat summary.txt >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Artifacts: \`forecast-batch-summary\`" >> "$GITHUB_STEP_SUMMARY"
+          exit $code
+      - name: Upload the summary
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: forecast-trials-051-100
-          path: forecast-batch-reports/
+          name: forecast-batch-summary
+          path: |
+            forecast-batch-summary.json
+            summary.txt
           if-no-files-found: warn
