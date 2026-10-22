@@ -1,0 +1,45 @@
+name: Evaluate forecast batch
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Completed live forecast batch workflow run ID"
+        required: true
+        default: "39610582675"
+        type: string
+  workflow_run:
+    workflows: ["Live two-minute forecast batch (100 trials)"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  evaluate:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download completed batch reports
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event_name == 'workflow_dispatch' && inputs.run_id || github.event.workflow_run.id }}
+          path: forecast-batch-reports
+          merge-multiple: true
+      - name: Evaluate candidate models on chronological holdout
+        run: |
+          python scripts/evaluate_forecast_models.py forecast-batch-reports --output forecast-model-evaluation.json
+          cat forecast-model-evaluation.json
+      - name: Upload evaluation report
+        uses: actions/upload-artifact@v4
+        with:
+          name: forecast-model-evaluation
+          path: forecast-model-evaluation.json
