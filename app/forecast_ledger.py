@@ -305,6 +305,14 @@ def read_ledger() -> dict[str, Any]:
             round(bucket["correct"] / bucket["forecasts"] * 100, 2) if bucket["forecasts"] else None
         )
 
+    # Repeated forecasts made against the same reference price are not
+    # independent trials: they inherit the same starting point and can inflate
+    # an accuracy figure. Count them so the sample size is not oversold.
+    reference_prices = {
+        round(float(item.get("reference_price") or 0.0), 8) for item in resolved
+    }
+    duplicate_reference_rows = len(resolved) - len(reference_prices)
+
     model_accuracy = round(correct / len(resolved) * 100, 2) if resolved else None
     flat_accuracy = round(flat_correct / len(resolved) * 100, 2) if resolved else None
     summary = {
@@ -324,6 +332,9 @@ def read_ledger() -> dict[str, Any]:
             (model_accuracy > flat_accuracy) if model_accuracy is not None and flat_accuracy is not None else None
         ),
         "sample_is_small": len(resolved) < 30,
+        "distinct_reference_prices": len(reference_prices),
+        "duplicate_reference_rows": duplicate_reference_rows,
+        "sample_has_duplicates": duplicate_reference_rows > 0,
         "by_direction": directions,
         "per_direction_accuracy": per_direction,
         "corrupt_event_count": len(corrupt),

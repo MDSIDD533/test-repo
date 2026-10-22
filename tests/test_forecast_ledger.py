@@ -288,3 +288,32 @@ def test_a_large_sample_is_not_flagged_as_small():
     big = resolved_ledger([("UP", 101.0)] * 30)
     assert big["summary"]["resolved"] == 30
     assert big["summary"]["sample_is_small"] is False
+
+
+
+def test_duplicate_reference_prices_are_counted_not_hidden():
+    first = record_forecast(prediction(), run_id="a", symbol="BTCUSDT")
+    second = record_forecast(prediction(), run_id="b", symbol="BTCUSDT")
+    third = record_forecast(prediction(reference_price=101.0), run_id="c", symbol="BTCUSDT")
+
+    for entry, price in ((first, 100.5), (second, 99.5), (third, 101.5)):
+        record_resolution(entry["forecast_id"], observed_price=price)
+
+    summary = read_ledger()["summary"]
+    assert summary["resolved"] == 3
+    assert summary["distinct_reference_prices"] == 2
+    assert summary["duplicate_reference_rows"] == 1
+    assert summary["sample_has_duplicates"] is True
+
+
+def test_a_clean_sample_reports_no_duplicates():
+    for index in range(3):
+        entry = record_forecast(
+            prediction(reference_price=100.0 + index), run_id=f"run-{index}", symbol="BTCUSDT"
+        )
+        record_resolution(entry["forecast_id"], observed_price=101.0 + index)
+
+    summary = read_ledger()["summary"]
+    assert summary["distinct_reference_prices"] == 3
+    assert summary["duplicate_reference_rows"] == 0
+    assert summary["sample_has_duplicates"] is False

@@ -286,6 +286,13 @@ jobs:
                                    f"({before.get('resolved')} already resolved) from the cached ledger, "
                                    f"so the sample accumulates across runs. It is still small and "
                                    f"non-stationary; treat it as a trend, not proof.")
+                  if ledger.get("sample_has_duplicates"):
+                      lines.append("")
+                      lines.append(f"> **{ledger.get('duplicate_reference_rows')} of "
+                                   f"{ledger.get('resolved')} resolved rows share a reference price with "
+                                   f"another row** ({ledger.get('distinct_reference_prices')} distinct start "
+                                   f"prices). Those are not independent trials, so the accuracy figure is "
+                                   f"flattered by repeated starting points.")
                   if ledger.get("sample_is_small"):
                       lines.append("")
                       lines.append("> The sample is below 30 resolved forecasts. This is a mechanics check, "
