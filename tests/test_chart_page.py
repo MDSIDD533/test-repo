@@ -40,6 +40,16 @@ class LiveChartPageTests(unittest.TestCase):
     def test_manual_refresh_button_is_available(self):
         self.assertIn('id="load">Refresh now</button>', self.chart)
 
+    def test_chart_opens_live_binance_kline_stream_for_selected_symbol_and_interval(self):
+        self.assertIn("new WebSocket('wss://stream.binance.com:9443/ws/'+symbol.toLowerCase()+'@kline_'+interval)", self.chart)
+        self.assertIn('candleSeries.update(next)', self.chart)
+        self.assertIn('connectLiveStream(symbol,interval)', self.chart)
+
+    def test_selected_timeframe_is_sent_to_candle_and_analysis_apis(self):
+        self.assertIn("api('/api/candle-signals/'+pair+'?interval='+interval+'&limit='+limit)", self.chart)
+        self.assertIn("api('/api/analyze/'+pair+'?interval='+interval)", self.chart)
+        self.assertIn("$('chartTitle').textContent=symbol+' · '+interval", self.chart)
+
 
 if __name__ == "__main__":
     unittest.main()
