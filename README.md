@@ -53,6 +53,8 @@ Every pipeline stage can fail independently. Missing research is recorded as `un
 - Chronological 70/30 evaluation: candidate holdout MAE **0.027016%** versus zero-return baseline **0.024944%**.
 - Decision: **`DO_NOT_DEPLOY`**. The candidate did not beat the baseline by the predeclared 5% relative margin.
 - `scripts/resolve_forecasts.py` appends observed outcomes for due ledger forecasts using the same spot-ticker-first, no-look-ahead observation rule. `--dry-run` shows what would be resolved.
+- Once outcomes exist, the ledger reports **direction accuracy next to an always-FLAT baseline on the same resolved sample**, plus per-direction accuracy, an edge figure and a small-sample flag. A model that does not beat always-FLAT is labelled as losing to it in the dashboard.
+- The CI `live-verification` workflow freezes a real 1-minute-horizon forecast, waits for the horizon, resolves it against a real observation, and publishes the accuracy-versus-baseline numbers.
 - `scripts/evaluate_forecast_models.py` now reports MAE, MAPE, RMSE, direction accuracy, UP/DOWN/FLAT precision/recall/F1, confusion matrix, coverage, invalid-trial count, strict pass rate, Brier score when probabilities exist, and zero-return/momentum/technical baselines. Holdout outcomes are never used for tuning.
 
 The stored aggregate report is `reports/forecast-model-evaluation-2026-10-21.json`. The individual trial artifacts are not in this repository, so the enhanced evaluator has not been re-run on the original 100 trials. That limitation is recorded rather than hidden.
@@ -134,7 +136,7 @@ Copy `.env.example` values into your environment if you want to change paper ris
 
 Current verified baseline (sandbox, Python 3.11.2, Node 22.22.3):
 
-- Python: **242 passed**.
+- Python: **269 passed**.
 - JavaScript chart core: **19 passed**.
 - Browser and live-provider checks: **7 browser tests passed** and the provider checks passed in run `39743024896` (commit `acd02bd`). Binance returned HTTP 451 to that runner, so the verified intervals (`5m`, `1h`, `1d`) used the labelled Coinbase fallback; Binance itself is still unverified.
 - GitHub Actions `tests` workflow: green on the latest pushed commit at time of writing; the status of the newest commit must always be checked separately.
@@ -151,7 +153,8 @@ Tests mock market data. They do not require live Binance availability. Provider-
 - `GET /api/candle-signals/{symbol}?interval=5m&limit=200`
 - `GET /api/agents/run/{symbol}?interval=5m&simulation_count=100`
 - `GET /api/forecast/two-minute/{symbol}` (unrecorded preview)
-- `GET /api/forecast/ledger` (frozen forecasts, resolutions and summary)
+- `GET /api/forecast/ledger` (frozen forecasts, resolutions, always-FLAT baseline)
+- `GET /api/logs/recent?limit=50&level=warning` (operator-visible structured event tail)
 - `POST /api/forecast/ledger/{forecast_id}/resolve` (append an observed outcome)
 - `GET /api/reports/forecast-evaluation`
 - `GET /api/paper/account`
@@ -167,6 +170,7 @@ Tests mock market data. They do not require live Binance availability. Provider-
 - Binance and CoinDesk are unreachable from the development sandbox. Binance additionally returns **HTTP 451 (geo-block)** to GitHub-hosted runners, so Binance-specific claims can only be verified from a network Binance serves. The Coinbase fallback covers BTCUSDT and is verified in CI.
 - The original 100-trial artifacts are not stored in the repository; only the aggregate evaluation report is available.
 - Prediction in the agent pipeline is direction-only and uncalibrated. The two-minute experiment is the only point-forecast experiment, and it did not beat its baseline.
+- Structured events are written as JSON lines to `runtime/app.log` and kept in a 500-event in-memory ring. Known secret-bearing fields are redacted; a logging failure never fails a request. This is a log tail, not a metrics or alerting system.
 - The forecast ledger is an append-only local JSONL file (`runtime/forecast_ledger.jsonl` by default, git-ignored). It is not a database, has no access control, and is not replicated. Resolution is a manual/scripted step; nothing resolves forecasts automatically.
 - The paper account is a local JSON file with no access control, locking across processes or replication. Two servers pointed at the same file would not coordinate. There is no database, authentication, alert delivery or multi-user isolation.
 - No live trading remains a deliberate invariant. Any future live execution requires a separate safety-critical review, explicit authorization and tested order controls.

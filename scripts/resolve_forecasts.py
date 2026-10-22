@@ -134,6 +134,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, default=10)
     parser.add_argument("--provider", default="binance")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--out", default=None, help="write the run summary as JSON")
     arguments = parser.parse_args(argv)
 
     summary = resolve_pending(
@@ -141,7 +142,17 @@ def main(argv: list[str] | None = None) -> int:
         provider=arguments.provider,
         dry_run=arguments.dry_run,
     )
-    print(json.dumps(summary, indent=2, sort_keys=True))
+    # Report the resulting sample so a positive accuracy number is always shown
+    # next to the always-FLAT baseline it has to beat.
+    ledger = read_ledger()
+    summary["ledger_summary"] = ledger["summary"]
+
+    text = json.dumps(summary, indent=2, sort_keys=True)
+    print(text)
+    if arguments.out:
+        destination = Path(arguments.out)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(text, encoding="utf-8")
     return 1 if summary["errors"] else 0
 
 

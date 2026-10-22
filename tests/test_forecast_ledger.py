@@ -188,12 +188,19 @@ def test_resolution_records_the_observation_source_and_offset():
 def test_recording_is_durable_across_module_reload(tmp_path, monkeypatch):
     monkeypatch.setenv("FORECAST_LEDGER_PATH", str(tmp_path / "ledger.jsonl"))
     import importlib
+    import sys
 
     entry = record_forecast(prediction(), run_id="run-1", symbol="BTCUSDT")
-    importlib.reload(forecast_ledger)
+    original = sys.modules["app.forecast_ledger"]
+    try:
+        reloaded = importlib.reload(forecast_ledger)
 
-    assert forecast_ledger.ledger_path() == tmp_path / "ledger.jsonl"
-    assert forecast_ledger.read_ledger()["forecasts"][0]["forecast_id"] == entry["forecast_id"]
+        assert reloaded.ledger_path() == tmp_path / "ledger.jsonl"
+        assert reloaded.read_ledger()["forecasts"][0]["forecast_id"] == entry["forecast_id"]
+    finally:
+        # A reload creates a second LedgerError class object. Restoring the
+        # original module keeps exception identity stable for other tests.
+        sys.modules["app.forecast_ledger"] = original
 
 
 def test_ledger_path_parent_is_created_on_first_write(tmp_path, monkeypatch):
@@ -213,3 +220,71 @@ def test_target_time_is_derived_from_the_frozen_creation_time_not_from_now():
     expected = datetime(2020, 5, 5, 12, 5, tzinfo=timezone.utc)
     assert entry["target_time"] == expected.isoformat()
     assert entry["target_time"] != (datetime.now(timezone.utc) + timedelta(seconds=300)).isoformat()
+
+
+def resolved_ledger(specs):
+    """specs: list of (direction, observed_price) with a 100.0 reference."""
+    for index, (direction, price) in enumerate(specs):
+        entry = record_forecast(
+            prediction(direction=direction), run_id=f"run-{index}", symbol="BTCUSDT"
+        )
+        record_resolution(entry["forecast_id"], observed_price=price)
+    return read_ledger()
+
+
+def test_always_flat_baseline_uses_the_same_resolved_sample():
+    # UP +1.0% (correct), DOWN +1.0% (wrong), FLAT +0.01% (correct)
+    ledger = resolved_ledger([("UP", 101.0), ("DOWN", 101.0), ("FLAT", 100.01)])
+    summary = ledger["summary"]
+
+    assert summary["direction_correct"] == 2
+    assert summary["direction_accuracy_pct"] == 66.67
+    # Always-FLAT is correct only on the one forecast that barely moved.
+    assert summary["always_flat_accuracy_pct"] == 33.33
+    assert summary["edge_vs_always_flat_pct"] == 33.34
+    assert summary["beats_always_flat"] is True
+
+
+def test_a_model_can_lose_to_the_always_flat_baseline():
+    # Every forecast made a confident call but the market barely moved.
+    ledger = resolved_ledger([("UP", 100.01), ("DOWN", 100.01), ("UP", 100.0)])
+    summary = ledger["summary"]
+
+    assert summary["direction_correct"] == 0
+    assert summary["always_flat_accuracy_pct"] == 100.0
+    assert summary["beats_always_flat"] is False
+    assert summary["edge_vs_always_flat_pct"] == -100.0
+
+
+def test_baseline_metrics_are_null_before_anything_is_resolved():
+    record_forecast(prediction(), run_id="pending-only", symbol="BTCUSDT")
+    summary = read_ledger()["summary"]
+
+    assert summary["resolved"] == 0
+    assert summary["direction_accuracy_pct"] is None
+    assert summary["always_flat_accuracy_pct"] is None
+    assert summary["edge_vs_always_flat_pct"] is None
+    assert summary["beats_always_flat"] is None
+
+
+def test_per_direction_accuracy_is_reported_and_null_when_never_used():
+    ledger = resolved_ledger([("UP", 101.0), ("UP", 99.0), ("DOWN", 99.0)])
+    per_direction = ledger["summary"]["per_direction_accuracy"]
+
+    assert per_direction["UP"]["forecasts"] == 2
+    assert per_direction["UP"]["correct"] == 1
+    assert per_direction["UP"]["accuracy_pct"] == 50.0
+    assert per_direction["DOWN"]["accuracy_pct"] == 100.0
+    assert per_direction["FLAT"]["forecasts"] == 0
+    assert per_direction["FLAT"]["accuracy_pct"] is None
+
+
+def test_the_summary_flags_a_small_sample():
+    small = resolved_ledger([("UP", 101.0)])
+    assert small["summary"]["sample_is_small"] is True
+
+
+def test_a_large_sample_is_not_flagged_as_small():
+    big = resolved_ledger([("UP", 101.0)] * 30)
+    assert big["summary"]["resolved"] == 30
+    assert big["summary"]["sample_is_small"] is False

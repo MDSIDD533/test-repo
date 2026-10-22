@@ -163,3 +163,20 @@ def test_main_returns_non_zero_when_an_observation_fails(monkeypatch, capsys):
     )
     assert resolve_forecasts.main(["--limit", "1"]) == 1
     assert '"errors"' in capsys.readouterr().out
+
+
+def test_the_run_summary_includes_the_flat_baseline(monkeypatch, tmp_path, capsys):
+    entry = freeze()
+    record_resolution(entry["forecast_id"], observed_price=101.0)
+    output = tmp_path / "resolution.json"
+
+    code = resolve_forecasts.main(["--out", str(output)])
+
+    assert code == 0
+    import json
+
+    written = json.loads(output.read_text(encoding="utf-8"))
+    assert written["ledger_summary"]["resolved"] == 1
+    assert written["ledger_summary"]["direction_accuracy_pct"] == 100.0
+    assert written["ledger_summary"]["always_flat_accuracy_pct"] is not None
+    assert written["ledger_summary"]["sample_is_small"] is True

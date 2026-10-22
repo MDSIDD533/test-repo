@@ -55,3 +55,18 @@ def test_dashboard_surfaces_paper_state_persistence_and_warnings():
     assert "state_warning" in html
     assert "A restart reloads this record" in html
     assert "not a database" in html
+
+
+def test_dashboard_shows_the_operator_log_and_the_flat_baseline():
+    html = (Path(__file__).resolve().parents[1] / "static" / "index.html").read_text(encoding="utf-8")
+
+    assert 'id="logsPanel"' in html
+    assert "/api/logs/recent" in html
+    assert "Secrets are redacted" in html
+    assert "not durable across restarts" in html
+
+    # The ledger must compare against always-FLAT rather than report accuracy alone.
+    assert "Always-FLAT baseline" in html
+    assert "Edge vs always-FLAT" in html
+    assert "LOSING to always-FLAT" in html
+    assert "not evidence of skill" in html

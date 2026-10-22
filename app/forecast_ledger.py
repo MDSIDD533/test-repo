@@ -282,16 +282,50 @@ def read_ledger() -> dict[str, Any]:
     for item in ordered:
         if item.get("direction") in directions:
             directions[item["direction"]] += 1
+
+    # A direction model is only interesting if it beats always saying FLAT.
+    # Both numbers use the same resolved sample and the same threshold, so the
+    # comparison is like-for-like rather than an estimate.
+    flat_correct = 0
+    per_direction: dict[str, dict[str, int]] = {
+        direction: {"forecasts": 0, "correct": 0} for direction in sorted(ALLOWED_DIRECTIONS)
+    }
+    for item in resolved:
+        resolution = item["resolution"]
+        return_pct = float(resolution.get("observed_return_pct") or 0.0)
+        if abs(return_pct) <= DIRECTION_THRESHOLD_PCT:
+            flat_correct += 1
+        bucket = per_direction.get(str(item.get("direction")))
+        if bucket is not None:
+            bucket["forecasts"] += 1
+            if resolution.get("direction_correct") is True:
+                bucket["correct"] += 1
+    for bucket in per_direction.values():
+        bucket["accuracy_pct"] = (
+            round(bucket["correct"] / bucket["forecasts"] * 100, 2) if bucket["forecasts"] else None
+        )
+
+    model_accuracy = round(correct / len(resolved) * 100, 2) if resolved else None
+    flat_accuracy = round(flat_correct / len(resolved) * 100, 2) if resolved else None
     summary = {
         "total": len(ordered),
         "pending": len(ordered) - len(resolved),
         "resolved": len(resolved),
         "direction_correct": correct,
         "direction_incorrect": len(resolved) - correct,
-        "direction_accuracy_pct": round(correct / len(resolved) * 100, 2)
-        if resolved
-        else None,
+        "direction_accuracy_pct": model_accuracy,
+        "always_flat_accuracy_pct": flat_accuracy,
+        "edge_vs_always_flat_pct": (
+            round(model_accuracy - flat_accuracy, 2)
+            if model_accuracy is not None and flat_accuracy is not None
+            else None
+        ),
+        "beats_always_flat": (
+            (model_accuracy > flat_accuracy) if model_accuracy is not None and flat_accuracy is not None else None
+        ),
+        "sample_is_small": len(resolved) < 30,
         "by_direction": directions,
+        "per_direction_accuracy": per_direction,
         "corrupt_event_count": len(corrupt),
     }
     return {

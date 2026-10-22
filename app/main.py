@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 import time
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 from app.market import MarketDataError, all_24h_tickers, candles, provider_used
@@ -19,6 +19,7 @@ from app.risk_decision_agent import run_risk_decision_agent
 from app.report_agent import run_report_agent
 from app.short_horizon_forecast import make_two_minute_forecast
 from app.forecast_ledger import LedgerError, read_ledger, record_resolution
+from app import observability
 
 ROOT = Path(__file__).resolve().parent.parent
 app = FastAPI(title='Crypto Spot Trading Analysis Agent', version='0.1.0', description='Analysis and paper trading only. Live trading is disabled.')
@@ -31,6 +32,41 @@ class ForecastResolutionRequest(BaseModel):
     observed_at: str | None = None
     source: str = Field(default='manual_observation', min_length=1, max_length=80)
     time_difference_seconds: float | None = None
+
+@app.middleware('http')
+async def record_request(request: Request, call_next):
+    """Log every request with its outcome. A detail string is logged for failures."""
+    started = time.perf_counter()
+    response = await call_next(request)
+    elapsed = (time.perf_counter() - started) * 1000
+    if response.status_code >= 500:
+        level = 'error'
+    elif response.status_code >= 400:
+        level = 'warning'
+    else:
+        level = 'info'
+    observability.log_event(
+        level,
+        'http_request',
+        method=request.method,
+        path=request.url.path,
+        status=response.status_code,
+        duration_ms=round(elapsed, 2),
+    )
+    return response
+
+
+@app.get('/api/logs/recent')
+def recent_logs(limit: int = Query(default=50, ge=1, le=500), level: str | None = None):
+    """Operator-visible tail of structured events, newest first."""
+    try:
+        return {
+            'entries': observability.recent(limit, level=level),
+            'summary': observability.summary(),
+        }
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f'Event log is unreadable: {exc}')
+
 
 @app.get('/', response_class=HTMLResponse)
 def dashboard(): return (ROOT / 'static' / 'index.html').read_text(encoding='utf-8')
@@ -66,7 +102,7 @@ def run_agents(symbol: str, interval: str = '5m', simulation_count: int = Query(
         research_agent = make_research_agent(fetch_crypto_news)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return run_agent_pipeline(
+    report = run_agent_pipeline(
         symbol,
         {
             'market_data': market_agent,
@@ -79,6 +115,19 @@ def run_agents(symbol: str, interval: str = '5m', simulation_count: int = Query(
         },
         simulation_count=simulation_count,
     ).to_dict()
+    stages = {stage['stage']: stage['status'] for stage in report.get('stages', [])}
+    failed = [name for name, status in stages.items() if status in {'failed', 'unavailable', 'not_configured'}]
+    observability.log_event(
+        'warning' if failed else 'info',
+        'agent_pipeline',
+        run_id=report.get('run_id'),
+        symbol=report.get('symbol'),
+        status=report.get('status'),
+        action=report.get('action'),
+        stages=stages,
+        degraded_stages=failed,
+    )
+    return report
 
 @app.get('/api/forecast/two-minute/{symbol}')
 def two_minute_forecast_preview(symbol: str):
@@ -159,7 +208,10 @@ def resolve_forecast(forecast_id: str, request: ForecastResolutionRequest):
             source=request.source,
             time_difference_seconds=request.time_difference_seconds,
         )
-    except LedgerError as exc:
+    except (LedgerError, ValueError) as exc:
+        # LedgerError subclasses ValueError. Matching on the base type keeps
+        # this correct even if the module is reloaded and a fresh exception
+        # class object exists.
         raise HTTPException(status_code=400, detail=str(exc))
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f'Forecast ledger write failed: {exc}')

@@ -19,6 +19,18 @@ def isolated_forecast_ledger(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolated_event_log(monkeypatch):
+    """Keep structured events out of the repository and out of other tests."""
+    from app import observability
+
+    with tempfile.TemporaryDirectory() as directory:
+        monkeypatch.setenv("APP_LOG_PATH", os.path.join(directory, "app.log"))
+        observability.clear()
+        yield
+        observability.clear()
+
+
+@pytest.fixture(autouse=True)
 def isolated_paper_state(monkeypatch):
     """Give every test a private paper account file and a clean in-memory state."""
     from app import paper

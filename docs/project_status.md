@@ -4,7 +4,7 @@ Branch: `arena/a852519f-test-repo` (branched from `main` at `d0101156acc5d23801a
 
 Overall status: **PARTIALLY COMPLETE**.
 
-The checklist score is **93.4%**, but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
+The checklist score is **94.6%**, but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
 
 ## 1. Inspection findings
 
@@ -123,10 +123,10 @@ The overall percentage is the sum of item scores divided by the number of items.
 | 9 | Confusion matrix | 1 | 3×3 matrix |
 | 10 | Coverage and invalid-trial rate | 1 | `coverage_pct`, `invalid_trial_count` |
 | 11 | Brier score when probabilities exist | 0.5 | implemented; original model emitted no probability |
-| 12 | Zero-return/momentum/technical/flat baselines | 1 | `holdout_baselines` |
+| 12 | Zero-return/momentum/technical/flat baselines | 1 | `holdout_baselines` (offline evaluator) + always-FLAT comparison on the live ledger |
 | 13 | Chronological split with no holdout tuning | 1 | 70/30 split; selection on train only |
 | 14 | Enhanced evaluator re-run on original 100 artifacts | 0 | artifacts are not in the repository |
-| 15 | New independent live trials | 0 | network unavailable |
+| 15 | New independent live trials | 0.5 | CI resolves one real forecast per run; the 100-trial experiment is still the only batch |
 | 16 | Candidate not deployed after losing to baseline | 1 | `DO_NOT_DEPLOY`, dashboard banner |
 | 17 | Results documented without hiding failure | 1 | README/status/report |
 
@@ -139,7 +139,7 @@ Recorded results (unchanged):
 - Holdout candidate MAE: 0.027016% versus baseline 0.024944%.
 - Decision: `DO_NOT_DEPLOY`.
 
-**Prediction evaluation: 14.5 / 17 = 85.3%**
+**Prediction evaluation: 15 / 17 = 88.2%**
 
 ## 6. Paper trading
 
@@ -209,8 +209,8 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 
 | # | Item | Score | Evidence |
 |---|---|---|---|
-| 1 | Backend unit tests | 1 | 242 passing |
-| 2 | Chart logic tests | 1 | 18 passing |
+| 1 | Backend unit tests | 1 | 269 passing |
+| 2 | Chart logic tests | 1 | 19 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers; `requests.get` replaced in provider tests |
 | 5 | CI green on latest intended commit | 1 | 0726103 run 39734185577 and PR run 39734189882 success |
@@ -220,8 +220,9 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 | 8 | Application startup verified | 1 | uvicorn; `/api/health`, `/chart`, `/chart-core.js` returned 200 |
 | 9 | Browser-level chart test | 1 | `tests/browser/*.spec.js`, 7 passed in run 39743024896 |
 | 10 | Failure logs inspected | 1 | chart string mismatch and metric expectations fixed |
+| 12 | Structured logging with an operator-visible tail | 1 | `app/observability.py`, `/api/logs/recent`, 15 tests |
 
-**Testing: 11 / 11 = 100%**
+**Testing: 12 / 12 = 100%**
 
 ## 8. Documentation
 
@@ -252,6 +253,8 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 - Paper account applies fees/slippage/risk limits and records costs.
 - Backtest includes configurable costs and conservative stop priority.
 - Evaluator computes MAE, MAPE, RMSE, direction metrics, confusion matrix, coverage, Brier and baselines.
+- The ledger reports direction accuracy against an always-FLAT baseline on the same resolved sample, with an edge figure, per-direction accuracy and a small-sample flag.
+- Every request and pipeline run emits a structured event; `/api/logs/recent` and the dashboard panel expose the recent tail, and secret-bearing fields are redacted before writing.
 - The pipeline freezes each prediction in an append-only JSONL ledger before the report stage; tests confirm ordering, immutability and that a failed freeze is surfaced.
 - Dashboard shows the recorded failed experiment and the rejected deployment decision.
 - The paper account survives a real process restart: a trade seeded in one process was read back from a separately started uvicorn process (`/api/paper/account` showed `open_trades: 1`, `equity: 999.0`, matching the saved file).
