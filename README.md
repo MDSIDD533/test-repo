@@ -54,7 +54,7 @@ Every pipeline stage can fail independently. Missing research is recorded as `un
 - Decision: **`DO_NOT_DEPLOY`**. The candidate did not beat the baseline by the predeclared 5% relative margin.
 - `scripts/resolve_forecasts.py` appends observed outcomes for due ledger forecasts. It tries a real spot ticker across providers (Binance, then Coinbase) before any candle fallback, uses the same no-look-ahead candle rule as the experiment, and flags any run that had to fall back. `--dry-run` shows what would be resolved.
 - Once outcomes exist, the ledger reports **direction accuracy next to an always-FLAT baseline on the same resolved sample**, plus per-direction accuracy, an edge figure and a small-sample flag. A model that does not beat always-FLAT is labelled as losing to it in the dashboard.
-- The CI `live-verification` workflow freezes a real 1-minute-horizon forecast, waits for the horizon, resolves it against a real observation, and publishes the accuracy-versus-baseline numbers.
+- The CI `live-verification` workflow runs `scripts/freeze_and_resolve.py`, which freezes a real 1-minute-horizon forecast, **reads its own target time** and waits exactly that long, resolves it against a real spot ticker, and publishes the accuracy-versus-baseline numbers. It reports every step so a failure is diagnosable from the pull-request comment.
 - `scripts/evaluate_forecast_models.py` now reports MAE, MAPE, RMSE, direction accuracy, UP/DOWN/FLAT precision/recall/F1, confusion matrix, coverage, invalid-trial count, strict pass rate, Brier score when probabilities exist, and zero-return/momentum/technical baselines. Holdout outcomes are never used for tuning.
 
 The stored aggregate report is `reports/forecast-model-evaluation-2026-10-21.json`. The individual trial artifacts are not in this repository, so the enhanced evaluator has not been re-run on the original 100 trials. That limitation is recorded rather than hidden.
@@ -136,7 +136,7 @@ Copy `.env.example` values into your environment if you want to change paper ris
 
 Current verified baseline (sandbox, Python 3.11.2, Node 22.22.3):
 
-- Python: **273 passed**.
+- Python: **281 passed**.
 - JavaScript chart core: **19 passed**.
 - Browser and live-provider checks: **7 browser tests passed** and the provider checks passed in run `39743024896` (commit `acd02bd`). Binance returned HTTP 451 to that runner, so the verified intervals (`5m`, `1h`, `1d`) used the labelled Coinbase fallback; Binance itself is still unverified.
 - GitHub Actions `tests` workflow: green on the latest pushed commit at time of writing; the status of the newest commit must always be checked separately.
