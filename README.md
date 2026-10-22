@@ -51,14 +51,18 @@ Every pipeline stage can fail independently. Missing research is recorded as `un
   - original mean absolute price error: **0.063793%** of starting price
   - zero-return baseline mean absolute price error: **0.048120%**
 - Chronological 70/30 evaluation: candidate holdout MAE **0.027016%** versus zero-return baseline **0.024944%**.
-- Decision: **`DO_NOT_DEPLOY`**. The candidate did not beat the baseline by the predeclared 5% relative margin.
+- **Second live batch, 2026-10-22, 150 trials (run `39761203609`): 149 valid**, 44.3% direction accuracy (66/149, 95% CI 36.6–52.3%), strict tolerance 58/149 (38.9%), MAE 0.045871% of start versus zero-return 0.036681%.
+- That batch **did not beat the baselines**: the majority-class baseline is 49.66%, the model's error is higher than assuming no move, and the confidence interval covers a coin flip. The 149 trials span 150 minutes with a 60-second cadence, so only **49** are non-overlapping windows (38.8% accuracy) — the conservative read.
+- Decision: **`DO_NOT_DEPLOY`** stands. Full numbers: `docs/evidence/batch-150-summary.json` and `docs/evidence/batch-150-evaluation.json`.
 - `scripts/resolve_forecasts.py` appends observed outcomes for due ledger forecasts. It tries a real spot ticker across providers (Binance, then Coinbase) before any candle fallback, uses the same no-look-ahead candle rule as the experiment, and flags any run that had to fall back. `--dry-run` shows what would be resolved.
 - Once outcomes exist, the ledger reports **direction accuracy next to an always-FLAT baseline on the same resolved sample**, plus per-direction accuracy, an edge figure and a small-sample flag. A model that does not beat always-FLAT is labelled as losing to it in the dashboard.
 - The CI `live-verification` workflow runs `scripts/freeze_and_resolve.py`, which freezes a real forecast, **reads its own target time** and waits exactly that long, resolves it against a real spot ticker, and publishes the accuracy-versus-baseline numbers. It reports every step, says whether the row it reports is *this run's* forecast, and warns when a wait was capped.
 - The resolved ledger is cached between workflow runs so the sample accumulates instead of resetting. Repeated rows that share a start price are counted and warned about — they are not independent trials.
 - `scripts/evaluate_forecast_models.py` now reports MAE, MAPE, RMSE, direction accuracy, UP/DOWN/FLAT precision/recall/F1, confusion matrix, coverage, invalid-trial count, strict pass rate, Brier score when probabilities exist, and zero-return/momentum/technical baselines. Holdout outcomes are never used for tuning.
 
-The stored aggregate report is `reports/forecast-model-evaluation-2026-10-21.json`. The individual trial artifacts are not in this repository, so the enhanced evaluator has not been re-run on the original 100 trials. That limitation is recorded rather than hidden.
+The stored aggregate report is `reports/forecast-model-evaluation-2026-10-21.json`. The individual trial artifacts of the first batch are not in this repository, so the enhanced evaluator has not been re-run on those 100 trials. The 150-trial batch was evaluated in full and its summaries are committed under `docs/evidence/`.
+
+To run a batch yourself, `gh workflow run live-forecast-batch.yml -f confirmation=RUN-LIVE-BATCH -f trials=150`. A batch is expensive runner time: three shards, 50 trials each, 180 s apart, roughly 2.5 hours.
 
 ### Paper trading and backtesting
 
@@ -137,7 +141,7 @@ Copy `.env.example` values into your environment if you want to change paper ris
 
 Current verified baseline (sandbox, Python 3.11.2, Node 22.22.3):
 
-- Python: **285 passed**.
+- Python: **293 passed**.
 - JavaScript chart core: **19 passed**.
 - Browser and live-provider checks: **7 browser tests passed** and the provider checks passed in run `39743024896` (commit `acd02bd`). Binance returned HTTP 451 to that runner, so the verified intervals (`5m`, `1h`, `1d`) used the labelled Coinbase fallback; Binance itself is still unverified.
 - GitHub Actions `tests` workflow: green on the latest pushed commit at time of writing; the status of the newest commit must always be checked separately.
@@ -169,7 +173,8 @@ Tests mock market data. They do not require live Binance availability. Provider-
 
 - Browser-level verification and live-provider checks are **NOT VERIFIED from the development sandbox**, which has no browser and cannot reach Binance. They are automated in `.github/workflows/live-verification.yml`; see "How to verify this yourself" above. The workflow has to have run at least once against the current commit before you may treat those claims as verified.
 - Binance and CoinDesk are unreachable from the development sandbox. Binance additionally returns **HTTP 451 (geo-block)** to GitHub-hosted runners, so Binance-specific claims can only be verified from a network Binance serves. The Coinbase fallback covers BTCUSDT and is verified in CI.
-- The original 100-trial artifacts are not stored in the repository; only the aggregate evaluation report is available.
+- The original 100-trial artifacts are not stored in the repository; only the aggregate evaluation report is available. The 150-trial batch **is** stored as a summary, not as 150 raw files.
+- The 150-trial batch was sampled every 60 seconds, so adjacent trials overlap by 60 seconds and are not independent. Only 49 of 149 trials are non-overlapping windows.
 - Prediction in the agent pipeline is direction-only and uncalibrated. The two-minute experiment is the only point-forecast experiment, and it did not beat its baseline.
 - Structured events are written as JSON lines to `runtime/app.log` and kept in a 500-event in-memory ring. Known secret-bearing fields are redacted; a logging failure never fails a request. This is a log tail, not a metrics or alerting system.
 - The forecast ledger is an append-only local JSONL file (`runtime/forecast_ledger.jsonl` by default, git-ignored). It is not a database, has no access control, and is not replicated. Resolution is a manual/scripted step; nothing resolves forecasts automatically.

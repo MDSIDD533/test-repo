@@ -4,7 +4,7 @@ Branch: `arena/a852519f-test-repo` (branched from `main` at `d0101156acc5d23801a
 
 Overall status: **PARTIALLY COMPLETE**.
 
-The checklist score is **94.2%** (81 / 86 items), but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
+The checklist score is **95.3%** (82 / 86 items), but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
 
 ## 1. Inspection findings
 
@@ -126,12 +126,12 @@ The overall percentage is the sum of item scores divided by the number of items.
 | 12 | Zero-return/momentum/technical/flat baselines | 1 | `holdout_baselines` (offline evaluator) + always-FLAT comparison on the live ledger |
 | 13 | Chronological split with no holdout tuning | 1 | 70/30 split; selection on train only |
 | 14 | Enhanced evaluator re-run on original 100 artifacts | 0 | artifacts are not in the repository |
-| 15 | New independent live trials | 0.5 | CI freezes and resolves real forecasts every run and the ledger now accumulates across runs (11 frozen / 8 resolved at `9ff7db9`, 5 distinct start prices). That is a growing live ledger, not a controlled 100-trial batch |
+| 15 | New independent live trials | 1 | second live batch on 2026-10-22 (run `39761203609`): 150 trials, 149 valid, 44.3% direction accuracy. Sampled every 60 s, so only 49 are non-overlapping windows (38.8%); both figures are reported |
 | 16 | Candidate not deployed after losing to baseline | 1 | `DO_NOT_DEPLOY`, dashboard banner |
 | 17 | Results documented without hiding failure | 1 | README/status/report |
 | 18 | Sample integrity: repeated start prices are counted, not hidden | 1 | `distinct_reference_prices`, `duplicate_reference_rows`, `sample_has_duplicates`; CI warns "3 of 8 resolved rows share a reference price" |
 
-Recorded results (unchanged):
+Recorded results, first batch (unchanged):
 
 - Direction matches: 44/100 (44%).
 - Strict predefined tolerance passes: 37/100 (37%).
@@ -140,7 +140,27 @@ Recorded results (unchanged):
 - Holdout candidate MAE: 0.027016% versus baseline 0.024944%.
 - Decision: `DO_NOT_DEPLOY`.
 
-**Prediction evaluation: 16 / 18 = 88.9%**
+Second batch, 2026-10-22, run `39761203609` (150 trials, 3 shards, one trial per 60 s):
+
+| metric | value |
+|---|---|
+| valid trials | 149 / 150 (99.33%) |
+| direction accuracy | **44.3%** (66/149, 95% CI 36.6–52.3%) |
+| strict tolerance pass | 58 / 149 (38.9%) |
+| majority-class baseline | **49.66%** |
+| always-FLAT baseline | 8.05% |
+| MAE | 0.045871% of start |
+| zero-return MAE | **0.036681%** (lower is better) |
+| RMSE | 0.058723% |
+| non-overlapping subset | 49 trials, 38.8% accuracy |
+| observation source | spot ticker for 149 / 149 |
+| invalid trial | 1 (`trial-038.json`, `KeyError: 'forecast'`) |
+
+The second batch **replicated the first** (44.3% versus 44%) and failed the same way: below the 49.66% majority-class baseline, above the zero-return error, with a confidence interval that includes 50%. The chronological 70/30 re-evaluation again returned `DO_NOT_DEPLOY` (candidate relative improvement 0.0%). Reporting the majority baseline is important: a 44.3% headline sounds close to a coin flip, but the model is also *below the naive constant predictor*.
+
+Evidence files: `docs/evidence/batch-150-summary.json`, `docs/evidence/batch-150-evaluation.json`.
+
+**Prediction evaluation: 17 / 18 = 94.4%**
 
 ## 6. Paper trading
 
@@ -168,7 +188,7 @@ Verified locally with Python 3.11.2 and Node 22.22.3:
 
 ```text
 python -m pytest -q
-285 passed, 1 warning in 1.52s
+293 passed, 1 warning in 1.40s
 
 node --test static/chart-core.test.js
 # tests 19
@@ -217,7 +237,7 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 
 | # | Item | Score | Evidence |
 |---|---|---|---|
-| 1 | Backend unit tests | 1 | 285 passing |
+| 1 | Backend unit tests | 1 | 293 passing |
 | 2 | Chart logic tests | 1 | 19 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers; `requests.get` replaced in provider tests |
@@ -252,6 +272,8 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 
 ## 9. Verified working now
 
+- The 150-trial live batch ran to completion in CI (run `39761203609`, three shards, ~2.5 h) and both the batch summary and the chronological evaluation were published by the workflow itself. All 149 usable trials observed the outcome through a real spot ticker with a 0.0 s median offset.
+
 - `uvicorn app.main:app` starts; `/api/health` returns `PAPER ONLY`, live disabled.
 - `/chart` (22,950 bytes), `/chart-core.js` (16,400 bytes, `application/javascript`), `/` and `/api/reports/forecast-evaluation` return 200.
 - With Binance unreachable, `/api/candles/BTCUSDT?interval=1h` and `/api/forecast/two-minute/BTCUSDT` return 502 rather than a misleading 400.
@@ -283,7 +305,7 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 2. **Live Binance data:** Binance is unreachable from this sandbox (TLS/connection failure). Real 1h stream behavior and live provider latency are not verified.
 3. **Live research:** CoinDesk RSS could not be reached; parsing is unit-tested, live availability is not.
 4. **Original artifacts:** the 100 trial JSON files are not in the repository; the enhanced evaluator has not been re-run on them.
-5. **New experiments:** no new live trials were run, so no new accuracy claim is made.
+5. **New experiments:** a second 150-trial batch was run and it did not show skill (44.3% accuracy, below a 49.66% majority baseline). The 60-second cadence means adjacent trials overlap; the independent subset is 49 trials at 38.8%. No fee/slippage model is applied to this accuracy figure because no trade is executed.
 6. **Persistence:** paper trades and forecasts are now written to local files, but neither is a database: there is no cross-process locking, access control, replication or backup.
 7. **Automated resolution:** `scripts/resolve_forecasts.py` now runs against live Coinbase tickers inside the CI job (verified in `39759307781`), but nothing schedules it outside that workflow and it is not a production cron.
 8. **1-minute candles from Coinbase lag.** One pipeline run failed `market_data` with `Market data is stale (189s old; limit 180s)` for interval `1m`; the same run succeeded on `5m`, and a later run succeeded on `1m`. The freshness rule (3 intervals) was **not** loosened for this, so 1-minute evidence depends on the provider publishing promptly. Binance, which publishes faster, is geo-blocked from the runners.
