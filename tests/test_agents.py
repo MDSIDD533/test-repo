@@ -1,4 +1,5 @@
 from app.agents import PIPELINE_STAGES, run_agent_pipeline
+from app.report_agent import run_report_agent
 
 
 def complete_agents(*, calibrated=True, action="BUY", probability=0.72):
@@ -11,7 +12,10 @@ def complete_agents(*, calibrated=True, action="BUY", probability=0.72):
         "horizon": "4h",
         "sample_size": 250,
     }
-    agents["risk_decision"] = lambda context: {"action": action}
+    agents["risk_decision"] = lambda context: {
+        "action": action,
+        "authorized": action != "NO TRADE",
+    }
     agents["timetraveler"] = lambda context: {
         "simulation_count": context.get("requested_simulations", 100),
         "seed": 1234,
@@ -69,6 +73,34 @@ def test_pipeline_records_agent_exception_and_continues_remaining_stages():
     assert report.stages[1].status == "failed"
     assert report.stages[-1].stage == "report"
     assert report.stages[-1].status == "completed"
+
+
+def test_pipeline_marks_expected_research_unavailability_without_calling_it_a_failure():
+    from app.research_agent import ResearchUnavailable
+
+    agents = complete_agents()
+    agents["report"] = run_report_agent
+    agents["research"] = lambda context: (_ for _ in ()).throw(
+        ResearchUnavailable("No research evidence available for this run")
+    )
+    report = run_agent_pipeline("BTCUSDT", agents)
+    research_stage = next(stage for stage in report.stages if stage.stage == "research")
+    assert research_stage.status == "unavailable"
+    assert any("No research evidence" in error for error in research_stage.errors)
+    assert report.status == "incomplete"
+    assert report.action == "NO TRADE"
+    assert report.stages[-1].stage == "report"
+    assert report.stages[-1].status == "completed"
+    assert report.stages[-1].result["decision"] == "NO TRADE"
+
+
+def test_pipeline_requires_explicit_risk_authorization_for_non_no_trade_actions():
+    agents = complete_agents()
+    agents["risk_decision"] = lambda context: {"action": "BUY", "authorized": False}
+    report = run_agent_pipeline("BTCUSDT", agents)
+    assert report.status == "completed_no_trade"
+    assert report.action == "NO TRADE"
+    assert any("did not explicitly authorize" in warning for warning in report.warnings)
 
 
 def test_pipeline_rejects_blank_symbol():

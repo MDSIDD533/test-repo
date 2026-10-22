@@ -87,6 +87,7 @@ def run_agent_pipeline(
         "as_of": as_of,
         "requested_simulations": simulation_count,
         "_stage_statuses": {},
+        "_stage_errors": {},
     }
     results: list[StageResult] = []
     warnings: list[str] = []
@@ -116,6 +117,7 @@ def run_agent_pipeline(
             )
             results.append(result)
             context["_stage_statuses"][stage_name] = result.status
+            context["_stage_errors"][stage_name] = message
             warnings.append(message)
             continue
 
@@ -125,9 +127,15 @@ def run_agent_pipeline(
             if not isinstance(output, dict):
                 raise TypeError("Agent output must be a dictionary.")
             context[stage_name] = output
+            reported_status = output.get("status")
+            stage_status = (
+                reported_status
+                if reported_status in {"unavailable", "not_configured", "blocked"}
+                else "completed"
+            )
             result = StageResult(
                 stage=stage_name,
-                status="completed",
+                status=stage_status,
                 result=output,
                 evidence=output.get("evidence", []) if isinstance(output.get("evidence", []), list) else [],
                 warnings=output.get("warnings", []) if isinstance(output.get("warnings", []), list) else [],
@@ -138,16 +146,20 @@ def run_agent_pipeline(
             context["_stage_statuses"][stage_name] = result.status
             warnings.extend(result.warnings)
         except Exception as exc:
-            message = f"{stage_name} failed: {type(exc).__name__}: {exc}"
+            # Agents can mark expected unavailability (for example, no news on
+            # a quiet day) as `unavailable` without pretending it succeeded.
+            stage_status = getattr(exc, "stage_status", "failed")
+            message = f"{stage_name} {stage_status}: {type(exc).__name__}: {exc}"
             result = StageResult(
                 stage=stage_name,
-                status="failed",
+                status=stage_status,
                 errors=[message],
                 started_at=started,
                 completed_at=_utc_now(),
             )
             results.append(result)
             context["_stage_statuses"][stage_name] = result.status
+            context["_stage_errors"][stage_name] = message
             warnings.append(message)
 
     all_completed = len(results) == len(PIPELINE_STAGES) and all(
@@ -162,17 +174,26 @@ def run_agent_pipeline(
             probability_is_valid = probability is not None and 0 <= float(probability) <= 1
         except (TypeError, ValueError):
             probability_is_valid = False
+        authorized = decision.get("authorized") is True
         if (
             calibrated
             and probability_is_valid
+            and authorized
             and decision.get("action") in {"BUY", "HOLD", "EXIT", "NO TRADE"}
         ):
             action = decision["action"]
             status = "completed" if action != "NO TRADE" else "completed_no_trade"
         else:
-            warnings.append(
-                "Prediction is not demonstrably calibrated or decision is invalid; action forced to NO TRADE."
-            )
+            if not calibrated or not probability_is_valid:
+                warnings.append(
+                    "Prediction is not demonstrably calibrated or probability is invalid; action forced to NO TRADE."
+                )
+            elif not authorized:
+                warnings.append(
+                    "Risk decision did not explicitly authorize a trade; action forced to NO TRADE."
+                )
+            else:
+                warnings.append("Risk decision action is invalid; action forced to NO TRADE.")
             status = "completed_no_trade"
     elif any(item.status == "failed" for item in results):
         status = "failed"

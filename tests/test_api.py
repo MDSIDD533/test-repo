@@ -165,6 +165,12 @@ def test_agent_pipeline_api_runs_available_stages_and_fails_closed(monkeypatch):
     assert data["stages"][5]["result"]["action"] == "NO TRADE"
     assert data["stages"][5]["result"]["authorized"] is False
     assert data["stages"][6]["result"]["decision"] == "NO TRADE"
+    assert data["stages"][4]["result"]["direction"] in {"UP", "DOWN", "FLAT"}
+    assert data["stages"][4]["result"]["calibrated"] is False
+    assert data["stages"][4]["result"]["predicted_price"] is None
+    assert data["stages"][5]["result"]["authorized"] is False
+    assert data["stages"][6]["result"]["data_validation"]["valid"] is True
+    assert data["stages"][6]["result"]["blockers"]
 
 
 def test_agent_pipeline_api_rejects_unsupported_simulation_count():
@@ -184,3 +190,35 @@ def test_chart_pages_and_core_script_are_served():
     assert "javascript" in core.headers["content-type"]
     assert "class LiveStream" in core.text
     assert "normalizeKline" in core.text
+
+
+def test_agent_pipeline_reports_missing_research_as_unavailable_not_fabricated(monkeypatch):
+    import time
+
+    def fresh_candles(symbol, interval, limit):
+        now = time.time()
+        rows = []
+        for index in range(limit):
+            price = 100.0 + index * 0.15
+            rows.append({
+                "time": now - (limit - index) * 300,
+                "open": price - 0.04,
+                "high": price + 0.2,
+                "low": price - 0.2,
+                "close": price,
+                "volume": 10.0,
+            })
+        return rows
+
+    monkeypatch.setattr(main, "candles", fresh_candles)
+    monkeypatch.setattr(main, "fetch_crypto_news", lambda symbol, as_of: [])
+    response = client.get("/api/agents/run/BTCUSDT?interval=5m&simulation_count=100")
+    assert response.status_code == 200
+    data = response.json()
+    research_stage = data["stages"][3]
+    assert research_stage["status"] == "unavailable"
+    assert any("No research evidence" in error for error in research_stage["errors"])
+    assert data["status"] == "incomplete"
+    assert data["action"] == "NO TRADE"
+    assert data["stages"][6]["result"]["decision"] == "NO TRADE"
+    assert any("research" in blocker.lower() for blocker in data["stages"][6]["result"]["blockers"])

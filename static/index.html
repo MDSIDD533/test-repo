@@ -13,8 +13,8 @@
 <section class="panel span-5"><h2 data-en="Signal analysis" data-ur="Signal analysis">Signal analysis</h2><div class="controls"><input id="symbol" value="BTCUSDT" aria-label="Symbol"><button id="analyze">Analyze</button><button id="paperBtn">Paper BUY</button></div><div id="signalPanel" class="muted">Select a coin and press Analyze.</div></section>
 <section class="panel span-12 chart-panel" id="chartPanel"><div class="chart-actions"><h2 style="margin:0">Full Interactive Chart</h2><div class="controls" style="margin:0"><button id="expandChart" type="button">Expand chart ⛶</button><button id="minimizeChart" type="button" hidden>Minimize chart −</button><a class="pill" href="/chart" target="_blank" rel="noopener">Open chart in new tab ↗</a></div></div><iframe id="chartFrame" src="/chart?embed=1" title="Interactive crypto candlestick chart" loading="eager"></iframe><div class="notice">BUY signal candles yellow · SELL signal candles blue · other candles keep normal colours. Use Expand chart to enlarge it here without leaving the dashboard.</div></section>
 <section class="panel span-7"><h2 data-en="Paper trades" data-ur="Paper trades">Paper trades</h2><div class="table-wrap"><table><thead><tr><th>Pair</th><th>Entry</th><th>Qty</th><th>Stop</th><th>Status</th></tr></thead><tbody id="tradeRows"><tr><td colspan="5">No trades yet.</td></tr></tbody></table></div></section>
-<section class="panel span-12" id="agentsPanel"><div class="chart-actions" style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><div><h2 style="margin:0">Research & Agent Analysis</h2><div class="notice">Real stage outputs only; unconnected agents are clearly marked.</div></div><div class="controls"><select id="agentInterval" aria-label="Agent timeframe"><option>5m</option><option>15m</option><option>1h</option><option>4h</option></select><select id="simCount" aria-label="Simulation count"><option value="100">100 simulations</option><option value="500">500 simulations</option><option value="1000">1000 simulations</option></select><button id="runAgents">Run agent analysis</button></div></div><div id="agentStatus" class="status">Press Run agent analysis to inspect each stage.</div><div id="agentCards" class="grid" style="margin-top:12px"><div class="panel span-3"><b>Market Data Agent</b><p class="muted">Waiting to run</p></div><div class="panel span-3"><b>Market Analysis Agent</b><p class="muted">Waiting to run</p></div><div class="panel span-3"><b>Research Agent</b><p class="muted">Not connected to a live news provider</p></div><div class="panel span-3"><b>Prediction Agent</b><p class="muted">Not configured</p></div><div class="panel span-3"><b>Risk Decision Agent</b><p class="muted">Not configured</p></div><div class="panel span-3"><b>TimeTraveler Agent</b><p class="muted">Runs after validated market analysis</p></div><div class="panel span-3"><b>Report Agent</b><p class="muted">Not configured</p></div></div><p class="notice">Safety: incomplete research/prediction/risk stages mean NO TRADE. Scenario percentages are not verified win probabilities.</p></section>
-<section class="panel span-12"><h2 data-en="Safety & limitations" data-ur="Safety aur limitations">Safety & limitations</h2><p class="muted" id="safetyText">No live orders are possible in this version. Signals are rule-based estimates, not guarantees. News, AI chat, persistent trade history, and notifications are planned for later phases.</p></section>
+<section class="panel span-12" id="agentsPanel"><div class="chart-actions" style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><div><h2 style="margin:0">Research & Agent Analysis</h2><div class="notice">Real stage outputs only; unconnected agents are clearly marked.</div></div><div class="controls"><select id="agentInterval" aria-label="Agent timeframe"><option>5m</option><option>15m</option><option>1h</option><option>4h</option></select><select id="simCount" aria-label="Simulation count"><option value="100">100 simulations</option><option value="500">500 simulations</option><option value="1000">1000 simulations</option></select><button id="runAgents">Run agent analysis</button></div></div><div id="agentStatus" class="status">Press Run agent analysis to inspect each stage.</div><div id="agentCards" class="grid" style="margin-top:12px"><div class="panel span-3"><b>Market Data Agent</b><p class="muted">Waiting to run</p></div><div class="panel span-3"><b>Market Analysis Agent</b><p class="muted">Waiting to run</p></div><div class="panel span-3"><b>Research Agent</b><p class="muted">CoinDesk RSS when reachable; reports UNAVAILABLE instead of inventing news</p></div><div class="panel span-3"><b>Prediction Agent</b><p class="muted">Uncalibrated direction only; no point forecast authorized</p></div><div class="panel span-3"><b>Risk Decision Agent</b><p class="muted">Fail-closed paper gate</p></div><div class="panel span-3"><b>TimeTraveler Agent</b><p class="muted">Labeled historical bootstrap simulations</p></div><div class="panel span-3"><b>Report Agent</b><p class="muted">Summarizes actual stage statuses and blockers</p></div></div><p class="notice">Safety: incomplete research/prediction/risk stages mean NO TRADE. Scenario percentages are not verified win probabilities.</p></section>
+<section class="panel span-12"><h2 data-en="Safety & limitations" data-ur="Safety aur limitations">Safety & limitations</h2><p class="muted" id="safetyText">No live orders are possible in this version. Signals are rule-based estimates, not guarantees. Research evidence is optional and must never be fabricated; when it is unavailable the pipeline reports UNAVAILABLE and returns NO TRADE. Paper trades are in memory and reset on restart. Persistent storage, AI chat and alert delivery remain future phases.</p></section>
 </div></main>
 <script>
 const $=id=>document.getElementById(id);let scanner=[],lastAnalysis=null,lastCandles=[];
@@ -51,7 +51,7 @@ async function runAgentAnalysis() {
     };
     const ordered = ['market_data', 'market_analysis', 'timetraveler', 'research', 'prediction', 'risk_decision', 'report'];
     const stageByName = Object.fromEntries(stages.map(function (stage) { return [stage.stage, stage]; }));
-    const statusText = { completed: 'COMPLETED', failed: 'FAILED', not_configured: 'NOT CONFIGURED', blocked: 'BLOCKED' };
+    const statusText = { completed: 'COMPLETED', failed: 'FAILED', unavailable: 'UNAVAILABLE', not_configured: 'NOT CONFIGURED', blocked: 'BLOCKED' };
     $('agentStatus').textContent = 'Run ' + d.run_id + ' · Overall: ' + d.status.toUpperCase() + ' · Decision: ' + d.action + ' · As of ' + d.as_of;
     const cards = ordered.map(function (stageName) {
       const s = stageByName[stageName] || {
@@ -64,11 +64,12 @@ async function runAgentAnalysis() {
       const lines = [];
       if (s.stage === 'market_data') {
         lines.push('Candles: ' + (result.candle_count || (result.candles && result.candles.length) || '—'));
-        if (result.validation) lines.push('Validation: ' + (result.validation.valid ? 'VALID' : 'INVALID'));
+        if (result.validation) lines.push('Validation: ' + (result.validation.valid ? 'VALID' : 'INVALID') + ' · age ' + (result.validation.age_seconds == null ? '—' : result.validation.age_seconds) + 's');
       }
       if (s.stage === 'market_analysis') {
         lines.push('Signal: ' + (result.signal || '—'));
         lines.push('Confidence: ' + (result.confidence == null ? '—' : result.confidence) + '% (heuristic)');
+        lines.push('ATR: ' + (result.atr_pct == null ? '—' : result.atr_pct) + '%');
         ['entry', 'tp1', 'tp2', 'tp3', 'sl'].forEach(function (key) {
           if (result[key] !== undefined) lines.push(key.toUpperCase() + ': ' + result[key]);
         });
@@ -81,6 +82,7 @@ async function runAgentAnalysis() {
         lines.push('Positive scenarios: ' + (result.scenario_positive_pct == null ? '—' : result.scenario_positive_pct) + '% (not a calibrated win probability)');
       }
       if (s.stage === 'research') {
+        lines.push('Status: ' + (result.status || 'unavailable'));
         lines.push('Evidence accepted: ' + (result.items_accepted == null ? evidence.length : result.items_accepted));
         evidence.slice(0, 4).forEach(function (item) {
           lines.push((item.title || 'Source') + ' · ' + (item.source || '') + ' · ' + (item.published_at || ''));
@@ -88,6 +90,9 @@ async function runAgentAnalysis() {
       }
       if (s.stage === 'prediction') {
         lines.push('Direction: ' + (result.direction || '—'));
+        lines.push('Horizon: ' + (result.horizon_seconds == null ? '—' : result.horizon_seconds + 's'));
+        lines.push('Reference price: ' + (result.reference_price == null ? '—' : result.reference_price));
+        lines.push('Point forecast: ' + (result.predicted_price == null ? 'Not produced (uncalibrated)' : result.predicted_price));
         lines.push('Calibrated: ' + (result.calibrated === true ? 'YES' : 'NO'));
         lines.push('TP-before-SL probability: ' + (result.probability_tp_before_sl == null ? 'Unavailable' : result.probability_tp_before_sl));
         (result.warnings || []).slice(0, 2).forEach(function (warning) { lines.push(warning); });
@@ -101,6 +106,7 @@ async function runAgentAnalysis() {
         lines.push(result.summary || 'Report generated');
         lines.push('Completed stages: ' + ((result.completed_stages || []).length));
         lines.push('Incomplete stages: ' + ((result.incomplete_stages || []).length));
+        (result.blockers || []).slice(0, 3).forEach(function (blocker) { lines.push('Blocker: ' + blocker); });
       }
       const notes = (s.warnings || []).concat(s.errors || []);
       const displayed = lines.length ? lines : notes;
