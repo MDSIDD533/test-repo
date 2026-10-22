@@ -4,7 +4,7 @@ Branch: `arena/a852519f-test-repo` (branched from `main` at `d0101156acc5d23801a
 
 Overall status: **PARTIALLY COMPLETE**.
 
-The checklist score is **93.9%**, but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
+The checklist score is **93.4%**, but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
 
 ## 1. Inspection findings
 
@@ -77,13 +77,14 @@ The overall percentage is the sum of item scores divided by the number of items.
 | 11 | Stale-feed indication | 1 | `STALE_AFTER_MS`, `checkStreamHealth` |
 | 12 | Never show LIVE while disconnected | 1 | `rest: 'REST ONLY'`, `offline`, tests |
 | 13 | All nine timeframes sent exactly to backend | 1 | `test_market_intervals` parametrized over 9 intervals |
-| 14 | 1h candle width verified against live Binance | 0.5 | automated in `live-verification` (asserts 3600s spacing on live data); not yet run |
+| 14 | 1h candle width verified against a live provider | 1 | `live-verification` run 39743024896: 1h candles 3600s apart on live data (Coinbase; Binance is 451-blocked) |
 | 15 | Title, symbol, timeframe and price update | 1 | `updateTitle`, DOM tests |
 | 16 | Analysis refreshed on interval change | 1 | `/api/analyze?interval=` plus response check |
 | 17 | Old markers/levels cleared on interval change | 1 | `load` clears series and state |
-| 18 | Browser-level smooth live verification | 0.5 | Playwright suite written (candles, badge honesty, 1h/4h/1d spacing, zoom preservation); not yet run |
+| 18 | Browser-level chart verification | 1 | Playwright run 39743024896: 7/7 passed — candles render, labels switch, zoom preserved |
+| 19 | Live WebSocket updates verified in a browser | 0 | Binance WS returns HTTP 451 from GitHub runners; REST path verified instead |
 
-**Chart: 16.5 / 18 = 91.7%**
+**Chart: 17.5 / 19 = 92.1%**
 
 ## 4. Agents
 
@@ -192,9 +193,15 @@ GitHub Actions `tests` runs on this branch:
 | `47e416e` | 39723671534 | success |
 | `b4c6427` | 39724822738 | success |
 | `0726103` | 39734185577 | success |
+| `9c4e4e0` | 39739425752 | success |
+| `ee5d22b` | 39740927014 | success |
+| `c5b0c62` | 39741273287 | success |
+| `9c6f2cc` | 39741592115 | success |
+| `13acd95` | 39742247533 | success |
+| `acd02bd` | 39743024864 | success |
 | PR #1 (`0726103`) | 39734189882 | success |
 
-The latest verified commit is `0726103`; the pull request check on the same commit is green. Later documentation-only commits do not change code or test counts and are re-verified by the same workflow, but the exact current status should be re-checked with `gh run list`.
+The latest verified code commit is `acd02bd`; the live-verification workflow also passed on it (run 39743024896), and the pull request check on the same commit is green. Later documentation-only commits do not change code or test counts and are re-verified by the same workflow, but the exact current status should be re-checked with `gh run list`.
 
 Each run executes `node --check static/chart-core.js`, `node --test static/chart-core.test.js` and `python -m pytest -q` on Python 3.12 / Node 22.
 
@@ -202,7 +209,7 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 
 | # | Item | Score | Evidence |
 |---|---|---|---|
-| 1 | Backend unit tests | 1 | 239 passing |
+| 1 | Backend unit tests | 1 | 242 passing |
 | 2 | Chart logic tests | 1 | 18 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers; `requests.get` replaced in provider tests |
@@ -211,10 +218,10 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 | 11 | Provider-layer parsing and error contract | 1 | `test_market_provider`: endpoint fallback, schema drift → `MarketDataError` |
 | 7 | Paper/backtest tests | 1 | fees, limits, priority |
 | 8 | Application startup verified | 1 | uvicorn; `/api/health`, `/chart`, `/chart-core.js` returned 200 |
-| 9 | Browser-level chart test | 0.5 | `tests/browser/*.spec.js` + `live-verification` workflow; not yet executed |
+| 9 | Browser-level chart test | 1 | `tests/browser/*.spec.js`, 7 passed in run 39743024896 |
 | 10 | Failure logs inspected | 1 | chart string mismatch and metric expectations fixed |
 
-**Testing: 10.5 / 11 = 95.5%**
+**Testing: 11 / 11 = 100%**
 
 ## 8. Documentation
 
@@ -254,7 +261,8 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 
 ## 10. NOT VERIFIED / blockers
 
-0. **The `live-verification` workflow has not completed a run yet.** It is written, its pure logic is unit-tested (21 tests), and its JavaScript parses, but no evidence has been collected from Chromium or live Binance at the time of writing. That is why browser and 1h-against-live-Binance items score 0.5, not 1.
+0. **Binance itself remains unverified.** Binance answers GitHub-hosted runners with HTTP 451 (geo-block) and is unreachable from the development sandbox. The chart, intervals and server endpoints are verified through the labelled Coinbase fallback. Verifying Binance's own candles and WebSocket requires a network Binance serves.
+0b. **A defect the browser run caught:** `LiveStream` stored host timer functions and called them as object methods, which Chrome rejects with `TypeError: Illegal invocation`. Node does not enforce the receiver rule, so 18 unit tests passed while the first real browser run failed. Fixed in `acd02bd` and covered by a regression test.
 
 1. **Live browser chart:** no browser or display server is available. Smoothness, zoom preservation, and real socket reconnect UX are not browser-verified.
 2. **Live Binance data:** Binance is unreachable from this sandbox (TLS/connection failure). Real 1h stream behavior and live provider latency are not verified.
@@ -266,7 +274,7 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 
 ## 11. Next highest-priority tasks
 
-1. Run the chart in a real browser against live Binance, record screenshots/console evidence, and verify 5m/15m/1h/4h switching, zoom preservation and reconnect behavior.
+1. Verify Binance natively (candles and WebSocket) from a network Binance serves; the CI runner is geo-blocked, so only the Coinbase path is proved there.
 2. Download the original 100 trial artifacts and re-run the enhanced evaluator to replace the aggregate-only report with full metrics on the real data.
 3. Schedule `scripts/resolve_forecasts.py` (or call it after each observation) so frozen forecasts accumulate resolved outcomes, then compare direction accuracy against a always-FLAT baseline.
 4. Replace the local JSON files with a real datastore (SQLite) if multi-process access is ever needed; today two servers on the same file would not coordinate.

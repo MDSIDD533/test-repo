@@ -88,7 +88,9 @@ The development sandbox has no browser and cannot reach Binance, so the live cla
 - drives the app in Chromium: loads `/chart`, asserts candles render, asserts the badge never says `LIVE` unless a socket opened, switches 1m/1h/4h, checks that 1h/4h/1d candles are exactly 3600/14400/86400 seconds apart and aligned, and checks that a manual refresh does not reset the zoom,
 - posts the results as a comment on the pull request and uploads screenshots and JSON evidence as an artifact.
 
-Trigger it with **Actions → Live verification (browser + real providers) → Run workflow**, or it runs automatically when the files it verifies change. A run takes a few minutes.
+Trigger it with **Actions → Live verification (browser + real providers) → Run workflow**, or it runs automatically when the files it verifies change. A run takes a few minutes and posts its results as a pull-request comment.
+
+Latest result (run `39743024896`): provider checks 10 passed / 7 skipped (Binance geo-blocked) / 0 failed, one real two-minute trial completed, and 7 of 7 browser tests passed. That run also caught a genuine bug — `LiveStream` invoked host timers as object methods, which Chrome rejects with `TypeError: Illegal invocation`; Node does not enforce that rule, so only the browser found it.
 
 Read the numbers as: a single trial proves the freeze→observe→compare mechanics, not skill.
 
@@ -132,9 +134,9 @@ Copy `.env.example` values into your environment if you want to change paper ris
 
 Current verified baseline (sandbox, Python 3.11.2, Node 22.22.3):
 
-- Python: **239 passed**.
-- JavaScript chart core: **18 passed**.
-- Browser and live-provider checks: run by the `live-verification` workflow, which requires network access and Chromium.
+- Python: **242 passed**.
+- JavaScript chart core: **19 passed**.
+- Browser and live-provider checks: **7 browser tests passed** and the provider checks passed in run `39743024896` (commit `acd02bd`). Binance returned HTTP 451 to that runner, so the verified intervals (`5m`, `1h`, `1d`) used the labelled Coinbase fallback; Binance itself is still unverified.
 - GitHub Actions `tests` workflow: green on the latest pushed commit at time of writing; the status of the newest commit must always be checked separately.
 
 Tests mock market data. They do not require live Binance availability. Provider-layer tests replace `requests.get`, so URL selection, endpoint fallback, kline parsing and the `MarketDataError` contract are covered without network access; every test also gets a private paper-state and ledger file. The chart-core tests cover message validation, 1h alignment, candle ordering/de-duplication, stale detection, symbol/timeframe switching, superseded callbacks, reconnect backoff and retry limits.
