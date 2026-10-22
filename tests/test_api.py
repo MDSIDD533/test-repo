@@ -516,3 +516,17 @@ def test_candles_endpoint_states_the_real_provider(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["provider"] == "coinbase:BTC-USD"
+
+
+def test_candle_signals_endpoint_states_the_real_provider(monkeypatch):
+    from app import market
+
+    def fake_with_provider(symbol, interval, limit):
+        market._PROVIDER_USED[(symbol.upper(), interval)] = "coinbase:BTC-USD"
+        return [dict(row, signal="WAIT") for row in fake_candles(symbol, interval, limit)]
+
+    monkeypatch.setattr(main, "candles", fake_with_provider)
+    response = client.get("/api/candle-signals/BTCUSDT?interval=1h&limit=60")
+
+    assert response.status_code == 200
+    assert response.json()["provider"] == "coinbase:BTC-USD"

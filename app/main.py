@@ -214,7 +214,13 @@ def candle_signals(symbol:str,interval:str='5m',limit:int=Query(default=200,ge=3
                 except ValueError:
                     signal='WAIT'
             output.append({**candle,'signal':signal})
-        return {'symbol':symbol.upper(),'interval':interval,'candles':output,'signal_colors':{'BUY':'yellow','SELL':'blue','WAIT':'normal'}}
+        return {
+            'symbol': symbol.upper(),
+            'interval': interval,
+            'candles': output,
+            'signal_colors': {'BUY': 'yellow', 'SELL': 'blue', 'WAIT': 'normal'},
+            'provider': provider_used(symbol, interval),
+        }
     except MarketDataError as exc: raise HTTPException(status_code=502,detail=str(exc))
     except ValueError as exc: raise HTTPException(status_code=400,detail=str(exc))
 

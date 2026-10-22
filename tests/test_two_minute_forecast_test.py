@@ -122,3 +122,22 @@ def test_fallback_never_uses_a_candle_that_closed_after_the_target(monkeypatch):
     )
     with pytest.raises(RuntimeError, match="before the target"):
         runner.fetch_actual_price_with_fallback("BTCUSDT", "binance", 170.0)
+
+
+def test_experiment_reports_the_provider_that_actually_served_the_candles(monkeypatch):
+    """The app falls back to Coinbase, so the runner must not assume Binance."""
+    import scripts.two_minute_forecast_test as runner
+    from app import market
+
+    rows = [{"time": 1_700_000_000.0 + i * 60, "open": 100, "high": 101, "low": 99, "close": 100.5, "volume": 1}
+            for i in range(40)]
+
+    def coinbase_backed(symbol, interval, limit):
+        market._PROVIDER_USED[(symbol.upper(), interval)] = "coinbase:BTC-USD"
+        return rows
+
+    monkeypatch.setattr(runner, "candles", coinbase_backed)
+    fetched, provider = runner.fetch_experiment_candles("BTCUSDT", 40)
+
+    assert fetched == rows
+    assert provider == "coinbase:BTC-USD"

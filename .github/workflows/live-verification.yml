@@ -186,7 +186,7 @@ jobs:
                   comparison = data.get("comparison") or {}
                   observation = data.get("actual_observation") or {}
                   lines.append(f"- Forecast direction: **{forecast.get('direction')}** "
-                               f"(created `{forecast.get('forecast_created_at')}`)")
+                               f"(created `{forecast.get('forecast_created_at') or forecast.get('baseline_observed_at')}`)")
                   lines.append(f"- Baseline: {comparison.get('baseline_price')} → actual: {comparison.get('actual_price')}")
                   lines.append(f"- Observed via `{observation.get('source')}`, offset "
                                f"{observation.get('time_difference_seconds')}s")

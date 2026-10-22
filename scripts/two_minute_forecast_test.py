@@ -205,9 +205,10 @@ def main() -> int:
         baseline_observed_at = time.time()
         target_time = baseline_observed_at + 120.0
         forecast["baseline_price"] = baseline_price
-        forecast["baseline_observed_at"] = datetime.fromtimestamp(
+        forecast["forecast_created_at"] = datetime.fromtimestamp(
             baseline_observed_at, timezone.utc
         ).isoformat()
+        forecast["baseline_observed_at"] = forecast["forecast_created_at"]
         forecast["target_time"] = datetime.fromtimestamp(target_time, timezone.utc).isoformat()
         forecast["forecast_price"] = round(
             baseline_price * (1.0 + forecast["expected_return_pct"] / 100.0), 8
