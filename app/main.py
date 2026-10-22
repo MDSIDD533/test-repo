@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse
@@ -29,6 +30,16 @@ def full_chart(): return (ROOT / 'static' / 'chart.html').read_text(encoding='ut
 @app.get('/chart-core.js', include_in_schema=False)
 def chart_core_js():
     return FileResponse(ROOT / 'static' / 'chart-core.js', media_type='application/javascript')
+
+@app.get('/api/reports/forecast-evaluation')
+def forecast_evaluation_report():
+    path = ROOT / 'reports' / 'forecast-model-evaluation-2026-10-21.json'
+    if not path.exists():
+        raise HTTPException(status_code=404, detail='Recorded forecast evaluation report is unavailable')
+    try:
+        return json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=500, detail=f'Recorded forecast evaluation report is unreadable: {exc}')
 
 @app.get('/api/health')
 def health(): return {'status':'ok','version':app.version,'mode':'PAPER ONLY','live_trading_enabled':False}
@@ -132,9 +143,11 @@ def paper_open(request:PaperOpenRequest):
     except ValueError as exc: raise HTTPException(status_code=400,detail=str(exc))
 
 @app.post('/api/backtest/{symbol}')
-def backtest(symbol:str,interval:str='5m',limit:int=Query(default=500,ge=100,le=500)):
+def backtest(symbol:str,interval:str='5m',limit:int=Query(default=500,ge=100,le=500),fee_bps:float=Query(default=10.0,ge=0,le=100),slippage_bps:float=Query(default=0.0,ge=0,le=100)):
     try:
         cs=candles(symbol,interval,limit)
+        fee_rate=fee_bps/10000.0
+        slippage_rate=slippage_bps/10000.0
         balance=1000.0
         wins=losses=0
         trades=[]
@@ -148,7 +161,7 @@ def backtest(symbol:str,interval:str='5m',limit:int=Query(default=500,ge=100,le=
                 continue
             # The signal is calculated using candles strictly before the entry candle.
             signal_entry=float(result['entry'])
-            entry=float(cs[end]['open'])
+            entry=float(cs[end]['open'])*(1+slippage_rate)
             risk=max(signal_entry-float(result['sl']),0.0)
             reward=max(float(result['tp1'])-signal_entry,0.0)
             if entry<=0 or risk<=0 or reward<=0:
@@ -166,26 +179,31 @@ def backtest(symbol:str,interval:str='5m',limit:int=Query(default=500,ge=100,le=
                 # Model gap fills at the open; when both levels are touched intrabar,
                 # conservatively count the stop first.
                 if candle_open<=stop:
-                    exit_price=candle_open; outcome='LOSS'; exit_index=candle_index; break
+                    exit_price=candle_open*(1-slippage_rate); outcome='LOSS'; exit_index=candle_index; break
                 if candle_open>=target:
-                    exit_price=candle_open; outcome='WIN'; exit_index=candle_index; break
+                    exit_price=candle_open*(1-slippage_rate); outcome='WIN'; exit_index=candle_index; break
                 if candle['low']<=stop:
-                    exit_price=stop; outcome='LOSS'; exit_index=candle_index; break
+                    exit_price=stop*(1-slippage_rate); outcome='LOSS'; exit_index=candle_index; break
                 if candle['high']>=target:
-                    exit_price=target; outcome='WIN'; exit_index=candle_index; break
+                    exit_price=target*(1-slippage_rate); outcome='WIN'; exit_index=candle_index; break
             if exit_price is None:
                 exit_index=end+len(future)-1 if future else end
-                exit_price=future[-1]['close'] if future else entry
+                exit_price=(future[-1]['close'] if future else entry)*(1-slippage_rate)
             next_available_index=exit_index+1
-            pct=(exit_price-entry)/entry if entry else 0
-            balance*=1+pct
+            gross_pct=(exit_price-entry)/entry if entry else 0
+            entry_cost=entry*(1+fee_rate)
+            exit_proceeds=exit_price*(1-fee_rate)
+            net_pct=(exit_proceeds-entry_cost)/entry_cost if entry_cost else 0
+            balance*=1+net_pct
             wins+=outcome=='WIN'
             losses+=outcome=='LOSS'
             trades.append({
                 'entry':entry,
                 'exit':exit_price,
                 'outcome':outcome,
-                'return_pct':round(pct*100,3),
+                'gross_return_pct':round(gross_pct*100,4),
+                'return_pct':round(net_pct*100,4),
+                'fees_and_costs_pct':round((gross_pct-net_pct)*100,4),
                 'entry_candle_index':end,
                 'exit_candle_index':exit_index,
             })
@@ -198,8 +216,10 @@ def backtest(symbol:str,interval:str='5m',limit:int=Query(default=500,ge=100,le=
             'wins':wins,
             'losses':losses,
             'win_rate_pct':round(wins/len(trades)*100,2) if trades else 0,
+            'fee_bps_per_side':fee_bps,
+            'slippage_bps_per_side':slippage_bps,
             'results':trades,
-            'warning':'Simplified backtest excludes fees, slippage, and intrabar tick data; it allows only one open position at a time and does not predict future performance.',
+            'warning':'Simplified backtest includes configurable fees and slippage but excludes spread, order-book depth and intrabar tick data; it allows only one open position at a time and does not predict future performance.',
         }
     except (MarketDataError,ValueError) as exc:
         raise HTTPException(status_code=400,detail=str(exc))

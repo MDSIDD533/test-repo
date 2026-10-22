@@ -71,7 +71,9 @@ def test_backtest_includes_entry_candle_for_target_exit(monkeypatch):
     assert data["trades"] > 0
     assert data["results"][0]["outcome"] == "WIN"
     assert data["final_balance"] > data["initial_balance"]
-    assert "excludes fees, slippage" in data["warning"]
+    assert "includes configurable fees and slippage" in data["warning"]
+    assert data["fee_bps_per_side"] == 10.0
+    assert data["slippage_bps_per_side"] == 0.0
 
 def test_backtest_uses_open_price_when_target_is_gapped_over(monkeypatch):
     gap_open = {}
@@ -222,3 +224,50 @@ def test_agent_pipeline_reports_missing_research_as_unavailable_not_fabricated(m
     assert data["action"] == "NO TRADE"
     assert data["stages"][6]["result"]["decision"] == "NO TRADE"
     assert any("research" in blocker.lower() for blocker in data["stages"][6]["result"]["blockers"])
+
+
+def test_backtest_costs_reduce_reported_returns_and_final_balance(monkeypatch):
+    monkeypatch.setattr(main, "candles", fake_candles)
+
+    free = client.post("/api/backtest/TESTUSDT?interval=5m&limit=150&fee_bps=0&slippage_bps=0")
+    costly = client.post("/api/backtest/TESTUSDT?interval=5m&limit=150&fee_bps=50&slippage_bps=25")
+
+    assert free.status_code == 200
+    assert costly.status_code == 200
+    free_data = free.json()
+    costly_data = costly.json()
+    assert free_data["trades"] > 0 and costly_data["trades"] > 0
+    assert costly_data["final_balance"] < free_data["final_balance"]
+    assert costly_data["results"][0]["return_pct"] < costly_data["results"][0]["gross_return_pct"]
+    assert costly_data["results"][0]["fees_and_costs_pct"] > 0
+
+
+def test_recorded_forecast_evaluation_is_served_without_hiding_failure():
+    response = client.get("/api/reports/forecast-evaluation")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["batch_run_id"] == 39610582675
+    assert data["valid_trials"] == 100
+    assert data["decision"] == "DO_NOT_DEPLOY"
+    assert data["candidate_beats_baseline_on_holdout"] is False
+    assert (
+        data["selected_candidate_holdout_metrics"]["mean_absolute_price_error_pct"]
+        > data["zero_return_holdout_metrics"]["mean_absolute_price_error_pct"]
+    )
+
+
+def test_backtest_applies_stop_first_when_one_candle_touches_both_levels(monkeypatch):
+    def both_levels_touched(symbol, interval, limit):
+        rows = fake_candles(symbol, interval, limit)
+        # The entry candle opens between the levels, then trades through the
+        # stop and the target intrabar. The conservative rule must record a loss.
+        rows[80]["high"] = rows[80]["open"] + 100.0
+        rows[80]["low"] = 0.01
+        return rows
+
+    monkeypatch.setattr(main, "candles", both_levels_touched)
+    response = client.post("/api/backtest/TESTUSDT?interval=5m&limit=100")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["trades"] > 0
+    assert data["results"][0]["outcome"] == "LOSS"
