@@ -165,9 +165,10 @@ GitHub Actions `tests` runs on this branch:
 | `44ff229` | 39723243323 | success |
 | `172fcb7` | 39723354741 | success |
 | `1da9e25` | 39723431429 | success |
-| PR #1 (`1da9e25`) | 39723449206 | success |
+| `dc7cba3` | 39723563170 | success |
+| PR #1 (`dc7cba3`) | 39723566773 | success |
 
-The latest verified commit is `1da9e25`; the pull request check on the same commit is green. Later documentation-only commits trigger the same workflow, and the exact current status should be re-checked with `gh run list`.
+The latest verified commit is `dc7cba3`; the pull request check on the same commit is green. Later documentation-only commits do not change code or test counts and are re-verified by the same workflow. Later documentation-only commits trigger the same workflow, and the exact current status should be re-checked with `gh run list`.
 
 Each run executes `node --check static/chart-core.js`, `node --test static/chart-core.test.js` and `python -m pytest -q` on Python 3.12 / Node 22.
 
@@ -179,7 +180,7 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 | 2 | Chart logic tests | 1 | 18 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers |
-| 5 | CI green on latest intended commit | 1 | 1da9e25 run 39723431429 and PR run 39723449206 success |
+| 5 | CI green on latest intended commit | 1 | dc7cba3 run 39723563170 and PR run 39723566773 success |
 | 6 | Evaluator tests | 1 | metrics, coverage, Brier, holdout |
 | 7 | Paper/backtest tests | 1 | fees, limits, priority |
 | 8 | Application startup verified | 1 | uvicorn; `/api/health`, `/chart`, `/chart-core.js` returned 200 |
