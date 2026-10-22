@@ -20,5 +20,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh run cancel 39722964529 --repo "${{ github.repository }}" || true
-          gh run view 39722964529 --repo "${{ github.repository }}" --json status,conclusion
+          echo "Attempting cancel for run 39722964529"
+          gh api -X POST "repos/${{ github.repository }}/actions/runs/39722964529/cancel" --include || true
+          echo "Run state after request:"
+          gh api "repos/${{ github.repository }}/actions/runs/39722964529" --jq '{status,conclusion}' || true
