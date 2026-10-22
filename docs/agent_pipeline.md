@@ -4,6 +4,23 @@
 
 Turn the current rule-based spot-analysis starter into a staged, auditable research and simulation system. The system produces a ranked **decision report**, not a promise of profit. It must be allowed to return **NO TRADE** when data is stale, evidence conflicts, liquidity is poor, or simulated risk is unacceptable.
 
+## Implementation status (2026-10-22)
+
+The code now follows the stage order in the diagram below. A stage that cannot run is recorded with an explicit status; expected unavailability is not treated as a software success.
+
+| Stage | Implementation | Known limitation |
+|---|---|---|
+| Market Data | Validates injected candle payloads: fields, finite values, OHLC, ordering, gaps, freshness | Live provider availability is not verified in the sandbox |
+| Market Analysis | Rule-based EMA/RSI/MACD/ATR/structure and levels from validated candles | Heuristic, not a calibrated probability |
+| Research | CoinDesk RSS provider with source URL, timezone and 72h freshness checks; `ResearchUnavailable` becomes an `unavailable` stage | Live RSS could not be reached in the sandbox |
+| Prediction | Direction only, one-candle horizon, frozen creation time, reference price, features and model version; no point price or probability is fabricated. A separate 120-second preview endpoint returns an explicitly unrecorded point forecast. | Not calibrated; no persistent pipeline forecast ledger |
+| Risk & Decision | Reward/risk, ATR, configured limits, explicit authorization checks; fails closed | Always NO TRADE until a calibrated model is independently validated |
+| TimeTraveler | Reproducible historical-return bootstrap; labelled `simulation_only` and `not_an_observation` | Scenario frequencies are not win probabilities; costs not modeled |
+| Report | Combines validation, analysis, research, prediction, risk metrics, simulation summary, blockers and errors | Does not persist a durable report |
+| Outcome Tracker | Two-minute experiment runner records forecasts and outcomes as workflow artifacts | No database or in-app outcome ledger |
+
+The confidence policy is unchanged: no probability is displayed as calibrated unless it was trained and validated out of sample. The recorded 100-trial experiment concluded **DO_NOT_DEPLOY**; see `reports/forecast-model-evaluation-2026-10-21.json` and `docs/project_status.md`.
+
 ## Pipeline
 
 ```text
@@ -20,7 +37,8 @@ Scheduler / User Request
         | timestamped news/events, project/exchange notices, source quality
         v
 4. Prediction Agent
-        | calibrated probabilities for defined horizons; uncertainty + evidence
+        | direction + defined horizon; calibrated probabilities only after
+        | out-of-sample validation; uncertainty + evidence
         v
 5. Risk & Decision Agent
         | expected value after costs, liquidity, SL/TP, position sizing, NO TRADE gate

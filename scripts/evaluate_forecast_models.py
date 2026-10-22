@@ -100,6 +100,10 @@ def load_trial_dataset(directory: str | Path) -> dict[str, Any]:
                 "sentiment": max(-1, min(1, sentiment)),
                 "almost_same_reported": comparison.get("almost_same"),
                 "market_data_provider": report.get("market_data_provider"),
+                "observation_source": (report.get("actual_observation") or {}).get("source"),
+                "observation_time_difference_seconds": _number(
+                    (report.get("actual_observation") or {}).get("time_difference_seconds")
+                ),
             })
         except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             invalid_files.append({"file": path.name, "reason": f"{type(exc).__name__}: {exc}"})
@@ -350,6 +354,11 @@ def evaluate_models(directory: str | Path, train_fraction: float = 0.70) -> dict
         if dataset["discovered_files"]
         else None
     )
+    observation_differences = [
+        float(trial["observation_time_difference_seconds"])
+        for trial in trials
+        if trial.get("observation_time_difference_seconds") is not None
+    ]
 
     return {
         "report_directory": str(directory),
@@ -358,6 +367,17 @@ def evaluate_models(directory: str | Path, train_fraction: float = 0.70) -> dict
         "invalid_trial_files": dataset["invalid_files"],
         "invalid_trial_count": len(dataset["invalid_files"]),
         "coverage_pct": coverage,
+        "observation_timing": {
+            "trials_with_recorded_offset": len(observation_differences),
+            "median_time_difference_seconds": (
+                round(statistics.median(observation_differences), 3)
+                if observation_differences else None
+            ),
+            "max_time_difference_seconds": (
+                round(max(observation_differences), 3)
+                if observation_differences else None
+            ),
+        },
         "training_trials": len(train),
         "holdout_trials": len(holdout),
         "split_policy": "chronological; earliest trials train, latest trials holdout",

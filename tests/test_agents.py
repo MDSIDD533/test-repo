@@ -56,7 +56,8 @@ def test_pipeline_records_missing_agent_and_continues_remaining_stages():
     assert report.status == "incomplete"
     assert report.action == "NO TRADE"
     assert [stage.stage for stage in report.stages] == list(PIPELINE_STAGES)
-    assert report.stages[3].status == "not_configured"
+    assert report.stages[2].status == "not_configured"
+    assert report.stages[3].status == "completed"
     assert report.stages[4].status == "completed"
     assert report.stages[5].status == "completed"
     assert report.stages[6].status == "completed"

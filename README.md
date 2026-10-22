@@ -1,48 +1,131 @@
 # Crypto Spot Trading Analysis Agent
 
-Responsive crypto spot analysis dashboard for desktop and mobile.
+A paper-only crypto spot analysis, market research, short-horizon forecasting and evaluation platform.
+
+**Status: PARTIALLY COMPLETE.** The dashboard, chart pipeline, agent stages and forecast evaluator run and are covered by automated tests. Live browser verification and new live exchange trials are **NOT VERIFIED** in the development sandbox because Binance is unreachable there and no browser is available. See [`docs/project_status.md`](docs/project_status.md) for the measured checklist, test evidence and remaining gaps.
 
 ## Safety defaults
-- Binance USDT spot pairs only; no futures or short positions.
-- Live execution is disabled in code. No real orders are submitted.
-- Paper-trading risk defaults to 1% of virtual equity per trade.
-- Signals and confidence are heuristics, not guarantees or financial advice.
 
-## Current starter features
-- English / Roman Urdu responsive web dashboard.
-- Public Binance prices and 5-minute candles.
-- BUY / SELL / WAIT, entry, TP1-TP3, stop loss, RSI, EMA, MACD and simple price-action context.
-- 15m and 1h confirmation, scanner, paper account and basic backtest endpoint.
-- News, notifications and AI chat deferred until a later phase.
+- Binance USDT spot pairs only; no futures and no short positions.
+- **Live execution is disabled in code.** There is no order-submission path and no exchange API credentials are used.
+- Paper trading uses configurable risk, fees and slippage; it never contacts an exchange to place an order.
+- Heuristic signals and confidence scores are **not** calibrated profit probabilities.
+- The recorded two-minute BTC experiment did **not** beat a zero-return baseline and was **not deployed**.
+
+## What works
+
+### Dashboard and chart
+
+- `/` dashboard with scanner, signal analysis, paper account and per-stage agent output.
+- `/chart` interactive candlestick chart with 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h and 1d timeframes.
+- A 120-second forecast preview is available from the dashboard or `GET /api/forecast/two-minute/{symbol}`. It is explicitly unrecorded and uncalibrated; the frozen, evaluated experiment is the GitHub Actions trial runner.
+- Binance kline WebSocket updates the forming candle in place.
+- The previous socket is closed when the symbol or timeframe changes; late callbacks from superseded sockets are ignored.
+- Bounded exponential reconnection with a visible `RECONNECTING` / `OFFLINE` state.
+- REST refresh every 15 seconds as a fallback, plus refresh when the tab becomes visible.
+- Data validation rejects malformed, misaligned, duplicate or out-of-order candles. A 1h chart rejects candles whose timestamps are not aligned to one hour.
+- `LAST CANDLE CLOSED` / `FORMING CANDLE` indicator, last-update time, source and connection state.
+- A stale stream is labelled `STALE`; the page never says `LIVE` when only REST data is available.
+
+### Agents
+
+| Stage | Actual behaviour | Status |
+|---|---|---|
+| Market Data | Validates candle fields, OHLC consistency, ordering, gaps, freshness and status | Working |
+| Market Analysis | Rule-based indicators: EMA 9/20/50/200, RSI, MACD, ATR, structure, support/resistance | Working |
+| Research | CoinDesk RSS provider with source/freshness/URL checks; no evidence is reported as `UNAVAILABLE` | Working when network is available; **NOT VERIFIED** from this sandbox |
+| Prediction | Direction only (`UP`/`DOWN`/`FLAT`), frozen `forecast_created_at`, horizon, reference price, model version and limitations. No point price or probability is fabricated | Working, uncalibrated |
+| Risk Decision | Computes reward/risk, ATR volatility and authorization checks; always `NO TRADE` without independently calibrated evidence | Fail-closed |
+| TimeTraveler | Seeded historical-return bootstrap (100/500/1000 paths), explicitly labelled simulation | Working, not calibrated |
+| Report | Combines real stage statuses, validation, research, forecast, risk metrics, blockers and errors | Working |
+
+Every pipeline stage can fail independently. Missing research is recorded as `unavailable`, not as a fake success. The pipeline returns `NO TRADE` unless a prediction is calibrated **and** the risk gate explicitly authorizes a trade.
+
+### Forecast evaluation
+
+- 100 recorded live two-minute BTC trials (workflow run `39610582675`):
+  - direction matches: **44/100**
+  - strict predefined tolerance passes: **37/100**
+  - original mean absolute price error: **0.063793%** of starting price
+  - zero-return baseline mean absolute price error: **0.048120%**
+- Chronological 70/30 evaluation: candidate holdout MAE **0.027016%** versus zero-return baseline **0.024944%**.
+- Decision: **`DO_NOT_DEPLOY`**. The candidate did not beat the baseline by the predeclared 5% relative margin.
+- `scripts/evaluate_forecast_models.py` now reports MAE, MAPE, RMSE, direction accuracy, UP/DOWN/FLAT precision/recall/F1, confusion matrix, coverage, invalid-trial count, strict pass rate, Brier score when probabilities exist, and zero-return/momentum/technical baselines. Holdout outcomes are never used for tuning.
+
+The stored aggregate report is `reports/forecast-model-evaluation-2026-10-21.json`. The individual trial artifacts are not in this repository, so the enhanced evaluator has not been re-run on the original 100 trials. That limitation is recorded rather than hidden.
+
+### Paper trading and backtesting
+
+- In-memory paper account with balance, equity, open exposure, realized P&L and fees.
+- Configurable risk per trade, maximum open positions, per-side fee and slippage.
+- Duplicate open positions for the same symbol are rejected.
+- Stop-loss and TP1 exits record requested/filled price, gross P&L, fees, net P&L, reason and timestamps.
+- Backtest applies configurable fees/slippage and conservatively assumes the stop is hit first when one candle touches both stop and target.
+- Backtests remain simplified: no order-book depth, spread, funding (spot) or intrabar tick data.
 
 ## Run locally
+
 Python 3.11+ recommended.
 
     python -m venv .venv
-    .venv\\Scripts\\Activate.ps1
+    .venv\Scripts\Activate.ps1        # Windows
+    source .venv/bin/activate          # Linux/macOS
     python -m pip install -r requirements.txt
     uvicorn app.main:app --reload
 
-Open http://127.0.0.1:8000. For phone access on the same Wi-Fi, run with --host 0.0.0.0 and visit the computer's LAN IP on the phone. Public hosting needs HTTPS and deployment configuration.
+Open http://127.0.0.1:8000. For phone access on the same Wi-Fi, run with `--host 0.0.0.0` and visit the computer's LAN IP.
 
-## Automation roadmap
+Copy `.env.example` values into your environment if you want to change paper risk, fee, slippage or position limits. Do not put secrets in the repository.
 
-The multi-agent architecture and acceptance criteria are documented in [`docs/agent_pipeline.md`](docs/agent_pipeline.md). Implemented building blocks now include candle validation, technical market analysis, a source-provenance/freshness-gated research agent interface, and reproducible TimeTraveler bootstrap simulations for 100, 500, or 1000 scenarios. Research requires a real provider to be injected; it does not invent headlines. TimeTraveler outputs scenario distributions, not calibrated win probabilities.
+## Tests
 
-The partial pipeline endpoint `GET /api/agents/run/{symbol}?interval=5m&simulation_count=100` currently runs the market-data and market-analysis stages. It intentionally stops at the unconfigured research stage and returns `NO TRADE`. Prediction calibration, risk/decision, end-to-end TimeTraveler orchestration, reporting, and outcome tracking are not yet connected. The system must be allowed to return NO TRADE; 90% confidence is never assumed without out-of-sample calibration.
+    python -m pytest -q
+    node --test static/chart-core.test.js
+
+Current verified baseline (sandbox, Python 3.11.2, Node 22.22.3):
+
+- Python: **132 passed**.
+- JavaScript chart core: **18 passed**.
+- GitHub Actions `tests` workflow: green on the latest pushed commit at time of writing; the status of the newest commit must always be checked separately.
+
+Tests mock market data. They do not require live Binance availability. The chart-core tests cover message validation, 1h alignment, candle ordering/de-duplication, stale detection, symbol/timeframe switching, superseded callbacks, reconnect backoff and retry limits.
 
 ## API
-- GET /api/health
-- GET /api/market/summary
-- GET /api/scanner
-- GET /api/analyze/{symbol}
-- GET /api/agents/run/{symbol} (partial pipeline; fails closed to NO TRADE)
-- GET /api/candles/{symbol}
-- GET /api/paper/account
-- GET /api/paper/trades
-- POST /api/paper/refresh
-- POST /api/paper/open
-- POST /api/backtest/{symbol}
 
-## Known limitations
-All eligible USDT pairs are discovered, but detailed candle analysis is limited to a configurable top-volume subset to respect exchange API rate limits. Paper trades are currently in memory and reset on restart. Open paper BUY trades are checked against the latest ticker price when the dashboard refreshes (about every 15 seconds); fast price moves between refreshes can be missed, and this is not an exchange-native stop order. Backtesting allows one simulated position at a time and models candle-open gaps, but excludes fees, slippage, and intrabar tick data, so results are approximate. Persistent storage, proper alert delivery, news/fundamentals, AI chat and production deployment hardening are future phases.
+- `GET /api/health`
+- `GET /api/market/summary`
+- `GET /api/scanner`
+- `GET /api/analyze/{symbol}?interval=5m`
+- `GET /api/candles/{symbol}?interval=5m&limit=200`
+- `GET /api/candle-signals/{symbol}?interval=5m&limit=200`
+- `GET /api/agents/run/{symbol}?interval=5m&simulation_count=100`
+- `GET /api/forecast/two-minute/{symbol}` (unrecorded preview)
+- `GET /api/reports/forecast-evaluation`
+- `GET /api/paper/account`
+- `GET /api/paper/trades`
+- `POST /api/paper/refresh`
+- `POST /api/paper/open`
+- `POST /api/backtest/{symbol}?interval=5m&limit=500&fee_bps=10&slippage_bps=0`
+- `GET /chart`, `GET /chart-core.js`
+
+## Known limitations and blockers
+
+- Browser-level verification of the live chart was not performed. The chart logic is unit-tested and served correctly, but visual smoothness, zoom preservation during updates and real WebSocket behavior in a browser remain **NOT VERIFIED**.
+- Binance and CoinDesk are unreachable from the development sandbox. Real provider behavior, the 1h stream against live Binance, and research availability remain **NOT VERIFIED**.
+- The original 100-trial artifacts are not stored in the repository; only the aggregate evaluation report is available.
+- Prediction in the agent pipeline is direction-only and uncalibrated. The two-minute experiment is the only point-forecast experiment, and it did not beat its baseline.
+- Paper trades are in memory and reset on restart. There is no database, authentication, alert delivery or multi-user isolation.
+- No live trading remains a deliberate invariant. Any future live execution requires a separate safety-critical review, explicit authorization and tested order controls.
+
+## VS Code synchronization
+
+This repository is the canonical source. Local VS Code files update only after a normal Git operation:
+
+    git pull --ff-only
+
+There is no verified automatic sync workflow in this repository. Commits made here must be reviewed, merged and pulled locally; do not assume the local working tree updated itself.
+
+## Documentation
+
+- [`docs/project_status.md`](docs/project_status.md) — checklist-based status, evidence, percentages and next steps.
+- [`docs/agent_pipeline.md`](docs/agent_pipeline.md) — stage contracts, confidence policy and implementation status.

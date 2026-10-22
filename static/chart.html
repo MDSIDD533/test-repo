@@ -51,6 +51,7 @@
     inflight: null,
     loadSeq: 0,
     renderedKey: null,
+    limit: 200,
     hasFit: false,
     stream: null,
     lastUpdate: null,
@@ -231,7 +232,7 @@
   function handleLiveCandle(candle) {
     const key = state.renderedKey;
     if (!key || key !== candle.symbol + '@' + candle.interval) return;
-    const result = Core.upsertCandle(state.candles, candle, MAX_CANDLES);
+    const result = Core.upsertCandle(state.candles, candle, Math.min(state.limit || MAX_CANDLES, MAX_CANDLES));
     if (!result.changed) return;
     const chartCandle = Core.toChartCandle(result.candle, true);
     state.candleSeries.update(chartCandle);
@@ -266,7 +267,7 @@
     }
   }
 
-  function ensureStream(symbol, interval) {
+  function ensureStream(symbol, interval, forceRestart) {
     if (!state.stream) {
       state.stream = new Core.LiveStream({
         onState: mapStreamState,
@@ -275,6 +276,15 @@
           $('statusText').textContent = (error && error.message) || 'Live stream warning';
         },
       });
+    }
+    const snapshot = state.stream.snapshot();
+    if (
+      !forceRestart &&
+      snapshot.state === 'offline' &&
+      snapshot.symbol === symbol &&
+      snapshot.interval === interval
+    ) {
+      return;
     }
     state.stream.start(symbol, interval);
   }
@@ -343,6 +353,7 @@
         throw new Error('Not enough candles returned to render a reliable chart');
       }
       state.candles = built.candles;
+      state.limit = limit;
       state.analysis = analysis;
       state.candleSeries.setData(state.candles.map((candle) => Core.toChartCandle(candle, true)));
       renderMarkers(state.candles);
@@ -360,7 +371,7 @@
         state.hasFit = true;
       }
       state.renderedKey = key;
-      ensureStream(symbol, interval);
+      ensureStream(symbol, interval, !auto);
       if (built.warnings.length) {
         $('statusText').textContent = built.warnings[0];
       } else if (!state.stream.isLive()) {

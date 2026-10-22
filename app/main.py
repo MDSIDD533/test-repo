@@ -1,5 +1,7 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
+import time
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
@@ -15,6 +17,7 @@ from app.news_provider import fetch_crypto_news
 from app.prediction_agent import run_prediction_agent
 from app.risk_decision_agent import run_risk_decision_agent
 from app.report_agent import run_report_agent
+from app.short_horizon_forecast import make_two_minute_forecast
 
 ROOT = Path(__file__).resolve().parent.parent
 app = FastAPI(title='Crypto Spot Trading Analysis Agent', version='0.1.0', description='Analysis and paper trading only. Live trading is disabled.')
@@ -69,6 +72,52 @@ def run_agents(symbol: str, interval: str = '5m', simulation_count: int = Query(
         simulation_count=simulation_count,
     ).to_dict()
 
+@app.get('/api/forecast/two-minute/{symbol}')
+def two_minute_forecast_preview(symbol: str):
+    """Return an unrecorded 120-second forecast preview from completed 1m candles.
+
+    This endpoint is deliberately labeled as a preview. It is not a frozen
+    experiment record and cannot authorize a trade.
+    """
+    try:
+        rows = candles(symbol, '1m', 40)
+        now = time.time()
+        closed = [row for row in rows if float(row['time']) + 60 <= now]
+        if len(closed) < 35:
+            raise ValueError('Not enough completed 1-minute candles for a two-minute forecast')
+        analysis = analyze_candles(closed, symbol, '1m')
+        created_at = datetime.now(timezone.utc).isoformat()
+        research_items = []
+        research_status = 'unavailable'
+        research_error = None
+        try:
+            research_items = fetch_crypto_news(symbol, created_at)
+            research_status = 'available' if research_items else 'no_matching_recent_headlines'
+        except Exception as exc:
+            research_error = f'{type(exc).__name__}: {exc}'
+        forecast = make_two_minute_forecast(
+            closed, symbol, analysis.get('signal', 'WAIT'), research_items
+        )
+        forecast.update({
+            'forecast_created_at': created_at,
+            'baseline_source': 'latest completed 1m candle close (REST preview)',
+            'research_status': research_status,
+            'research_error': research_error,
+            'technical_signal': analysis.get('signal'),
+            'technical_reasons': analysis.get('reasons', []),
+            'recorded': False,
+            'trade_authorized': False,
+            'observation_note': (
+                'Preview only. For a frozen trial with an exact spot-ticker horizon, run '
+                'scripts/two_minute_forecast_test.py; this endpoint does not persist a forecast.'
+            ),
+        })
+        return forecast
+    except MarketDataError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
 @app.get('/api/market/summary')
 def market_summary():
     try:
@@ -93,7 +142,8 @@ def scanner(limit:int=Query(default=2000,ge=10,le=3000),analyze_top:int=Query(de
 @app.get('/api/candles/{symbol}')
 def get_candles(symbol:str,interval:str='5m',limit:int=Query(default=200,ge=35,le=500)):
     try: return {'symbol':symbol.upper(),'interval':interval,'candles':candles(symbol,interval,limit)}
-    except (MarketDataError,ValueError) as exc: raise HTTPException(status_code=400,detail=str(exc))
+    except MarketDataError as exc: raise HTTPException(status_code=502,detail=str(exc))
+    except ValueError as exc: raise HTTPException(status_code=400,detail=str(exc))
 
 @app.get('/api/candle-signals/{symbol}')
 def candle_signals(symbol:str,interval:str='5m',limit:int=Query(default=200,ge=35,le=500)):
@@ -110,8 +160,8 @@ def candle_signals(symbol:str,interval:str='5m',limit:int=Query(default=200,ge=3
                     signal='WAIT'
             output.append({**candle,'signal':signal})
         return {'symbol':symbol.upper(),'interval':interval,'candles':output,'signal_colors':{'BUY':'yellow','SELL':'blue','WAIT':'normal'}}
-    except (MarketDataError,ValueError) as exc:
-        raise HTTPException(status_code=400,detail=str(exc))
+    except MarketDataError as exc: raise HTTPException(status_code=502,detail=str(exc))
+    except ValueError as exc: raise HTTPException(status_code=400,detail=str(exc))
 
 @app.get('/api/analyze/{symbol}')
 def analyze(symbol:str,interval:str='5m'):
@@ -121,7 +171,8 @@ def analyze(symbol:str,interval:str='5m'):
             try: confirmations[tf]=analyze_candles(candles(symbol,tf,220),symbol,tf)['signal']
             except (MarketDataError,ValueError): confirmations[tf]='UNAVAILABLE'
         result['multi_timeframe']=confirmations; result['confirmed']=all(v==result['signal'] for v in confirmations.values()); return result
-    except (MarketDataError,ValueError) as exc: raise HTTPException(status_code=400,detail=str(exc))
+    except MarketDataError as exc: raise HTTPException(status_code=502,detail=str(exc))
+    except ValueError as exc: raise HTTPException(status_code=400,detail=str(exc))
 
 @app.get('/api/paper/account')
 def paper_account(): return paper.account()
@@ -221,5 +272,5 @@ def backtest(symbol:str,interval:str='5m',limit:int=Query(default=500,ge=100,le=
             'results':trades,
             'warning':'Simplified backtest includes configurable fees and slippage but excludes spread, order-book depth and intrabar tick data; it allows only one open position at a time and does not predict future performance.',
         }
-    except (MarketDataError,ValueError) as exc:
-        raise HTTPException(status_code=400,detail=str(exc))
+    except MarketDataError as exc: raise HTTPException(status_code=502,detail=str(exc))
+    except ValueError as exc: raise HTTPException(status_code=400,detail=str(exc))

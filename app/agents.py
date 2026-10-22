@@ -10,10 +10,10 @@ import uuid
 PIPELINE_STAGES = (
     "market_data",
     "market_analysis",
-    "timetraveler",
     "research",
     "prediction",
     "risk_decision",
+    "timetraveler",
     "report",
 )
 

@@ -52,3 +52,55 @@ def test_spot_ticker_rejects_non_positive_price(monkeypatch):
     monkeypatch.setattr(runner.requests, "get", lambda *args, **kwargs: FakeResponse({"price": "0"}))
     with pytest.raises(RuntimeError, match="non-finite or non-positive"):
         fetch_experiment_spot_price("BTCUSDT", "coinbase:BTC-USD")
+
+
+def test_exact_ticker_observation_records_zero_time_difference(monkeypatch):
+    import scripts.two_minute_forecast_test as runner
+
+    monkeypatch.setattr(runner, "fetch_experiment_spot_price", lambda symbol, provider: 65000.0)
+    result = runner.fetch_actual_price_with_fallback("BTCUSDT", "binance", 1_700_000_120.0)
+    assert result["price"] == 65000.0
+    assert result["source"] == "spot_ticker"
+    assert result["time_difference_seconds"] == 0.0
+
+
+def test_nearest_completed_candle_is_used_with_documented_time_difference(monkeypatch):
+    import scripts.two_minute_forecast_test as runner
+
+    def no_ticker(symbol, provider):
+        raise RuntimeError("ticker unavailable")
+
+    rows = [
+        {"time": 0.0, "close": 100.0},
+        {"time": 60.0, "close": 101.0},
+        {"time": 120.0, "close": 102.0},
+    ]
+    monkeypatch.setattr(runner, "fetch_experiment_spot_price", no_ticker)
+    monkeypatch.setattr(runner, "fetch_experiment_candles", lambda symbol, limit: (rows, "test-provider"))
+
+    result = runner.fetch_actual_price_with_fallback("BTCUSDT", "binance", 125.0)
+
+    assert result["source"] == "nearest_completed_1m_candle_close"
+    assert result["price"] == 101.0  # candle starting at 60s closes at 120s
+    assert result["observed_at"] == 120.0
+    assert result["time_difference_seconds"] == 5.0
+    assert "ticker unavailable" in result["ticker_error"]
+
+
+def test_fallback_rejects_an_observation_outside_the_tolerance(monkeypatch):
+    import scripts.two_minute_forecast_test as runner
+
+    monkeypatch.setattr(
+        runner,
+        "fetch_experiment_spot_price",
+        lambda symbol, provider: (_ for _ in ()).throw(RuntimeError("ticker unavailable")),
+    )
+    monkeypatch.setattr(
+        runner,
+        "fetch_experiment_candles",
+        lambda symbol, limit: ([{"time": 0.0, "close": 100.0}], "test-provider"),
+    )
+    with pytest.raises(RuntimeError, match="beyond the"):
+        runner.fetch_actual_price_with_fallback(
+            "BTCUSDT", "binance", 300.0, tolerance_seconds=30.0
+        )

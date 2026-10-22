@@ -156,21 +156,20 @@ def test_agent_pipeline_api_runs_available_stages_and_fails_closed(monkeypatch):
     assert data["action"] == "NO TRADE"
     assert data["status"] == "completed_no_trade"
     assert [stage["stage"] for stage in data["stages"]] == [
-        "market_data", "market_analysis", "timetraveler", "research",
-        "prediction", "risk_decision", "report",
+        "market_data", "market_analysis", "research", "prediction",
+        "risk_decision", "timetraveler", "report",
     ]
     assert all(stage["status"] == "completed" for stage in data["stages"])
     assert data["stages"][0]["result"]["validation"]["valid"] is True
-    assert data["stages"][2]["result"]["simulation_count"] == 500
-    assert data["stages"][3]["result"]["items_accepted"] == 1
-    assert data["stages"][4]["result"]["calibrated"] is False
-    assert data["stages"][5]["result"]["action"] == "NO TRADE"
-    assert data["stages"][5]["result"]["authorized"] is False
+    assert data["stages"][5]["result"]["simulation_count"] == 500
+    assert data["stages"][2]["result"]["items_accepted"] == 1
+    assert data["stages"][3]["result"]["calibrated"] is False
+    assert data["stages"][4]["result"]["action"] == "NO TRADE"
+    assert data["stages"][4]["result"]["authorized"] is False
     assert data["stages"][6]["result"]["decision"] == "NO TRADE"
-    assert data["stages"][4]["result"]["direction"] in {"UP", "DOWN", "FLAT"}
-    assert data["stages"][4]["result"]["calibrated"] is False
-    assert data["stages"][4]["result"]["predicted_price"] is None
-    assert data["stages"][5]["result"]["authorized"] is False
+    assert data["stages"][3]["result"]["direction"] in {"UP", "DOWN", "FLAT"}
+    assert data["stages"][3]["result"]["calibrated"] is False
+    assert data["stages"][3]["result"]["predicted_price"] is None
     assert data["stages"][6]["result"]["data_validation"]["valid"] is True
     assert data["stages"][6]["result"]["blockers"]
 
@@ -217,7 +216,7 @@ def test_agent_pipeline_reports_missing_research_as_unavailable_not_fabricated(m
     response = client.get("/api/agents/run/BTCUSDT?interval=5m&simulation_count=100")
     assert response.status_code == 200
     data = response.json()
-    research_stage = data["stages"][3]
+    research_stage = data["stages"][2]
     assert research_stage["status"] == "unavailable"
     assert any("No research evidence" in error for error in research_stage["errors"])
     assert data["status"] == "incomplete"
@@ -271,3 +270,70 @@ def test_backtest_applies_stop_first_when_one_candle_touches_both_levels(monkeyp
     data = response.json()
     assert data["trades"] > 0
     assert data["results"][0]["outcome"] == "LOSS"
+
+
+def test_upstream_market_failures_return_502_not_client_errors(monkeypatch):
+    def unavailable(*args, **kwargs):
+        raise main.MarketDataError("upstream provider is unavailable")
+
+    monkeypatch.setattr(main, "candles", unavailable)
+    for path in (
+        "/api/candles/BTCUSDT?interval=5m&limit=50",
+        "/api/candle-signals/BTCUSDT?interval=5m&limit=50",
+        "/api/analyze/BTCUSDT?interval=5m",
+    ):
+        response = client.get(path)
+        assert response.status_code == 502, path
+        assert "upstream provider is unavailable" in response.json()["detail"]
+
+
+def test_invalid_market_request_remains_a_400(monkeypatch):
+    def invalid(*args, **kwargs):
+        raise ValueError("Unsupported candle interval")
+
+    monkeypatch.setattr(main, "candles", invalid)
+    response = client.get("/api/candles/BTCUSDT?interval=7m")
+    assert response.status_code == 400
+    assert "Unsupported candle interval" in response.json()["detail"]
+
+
+def test_two_minute_forecast_preview_is_explicitly_unrecorded_and_uncalibrated(monkeypatch):
+    import time
+
+    def recent_minute_candles(symbol, interval, limit):
+        now = time.time()
+        rows = []
+        for index in range(limit):
+            price = 100.0 + index * 0.05
+            rows.append({
+                "time": now - (limit - index) * 60,
+                "open": price - 0.01,
+                "high": price + 0.1,
+                "low": price - 0.1,
+                "close": price,
+                "volume": 5.0,
+            })
+        return rows
+
+    monkeypatch.setattr(main, "candles", recent_minute_candles)
+    monkeypatch.setattr(main, "fetch_crypto_news", lambda symbol, as_of: [])
+    response = client.get("/api/forecast/two-minute/BTCUSDT")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["symbol"] == "BTCUSDT"
+    assert data["horizon_seconds"] == 120
+    assert data["calibrated"] is False
+    assert data["recorded"] is False
+    assert data["trade_authorized"] is False
+    assert data["research_status"] == "no_matching_recent_headlines"
+    assert data["forecast_created_at"]
+    assert data["forecast_price"] > 0
+    assert "Preview only" in data["observation_note"]
+
+
+def test_two_minute_forecast_preview_rejects_insufficient_closed_candles(monkeypatch):
+    monkeypatch.setattr(main, "candles", lambda *args: fake_candles(*args)[:20])
+    response = client.get("/api/forecast/two-minute/BTCUSDT")
+    assert response.status_code == 400
+    assert "completed 1-minute candles" in response.json()["detail"]

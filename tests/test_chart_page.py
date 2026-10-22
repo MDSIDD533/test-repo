@@ -73,6 +73,11 @@ class LiveChartPageTests(unittest.TestCase):
         self.assertIn("setConnection('rest',", self.chart)
         self.assertNotIn("setStatus('LIVE", self.chart)
 
+    def test_automatic_refresh_does_not_restart_an_offline_stream(self):
+        self.assertIn("function ensureStream(symbol, interval, forceRestart)", self.chart)
+        self.assertIn("snapshot.state === 'offline'", self.chart)
+        self.assertIn("ensureStream(symbol, interval, !auto);", self.chart)
+
     def test_stale_feed_is_detected_and_reported(self):
         self.assertIn("const STALE_AFTER_MS = 30000;", self.chart)
         self.assertIn("state.stream.isStaleAt(Date.now(), STALE_AFTER_MS)", self.chart)

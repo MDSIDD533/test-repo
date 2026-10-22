@@ -32,6 +32,7 @@ def run_report_agent(context: dict[str, Any]) -> dict[str, Any]:
     research = _dict(context.get("research"))
     prediction = _dict(context.get("prediction"))
     risk = _dict(context.get("risk_decision"))
+    timetraveler = _dict(context.get("timetraveler"))
     validation = _dict(market_data.get("validation"))
 
     decision = str(risk.get("action", "NO TRADE"))
@@ -78,6 +79,9 @@ def run_report_agent(context: dict[str, Any]) -> dict[str, Any]:
     research_evidence = research.get("evidence")
     if isinstance(research_evidence, list):
         evidence.extend(item for item in research_evidence if isinstance(item, dict))
+    simulation_evidence = timetraveler.get("evidence")
+    if isinstance(simulation_evidence, list):
+        evidence.extend(item for item in simulation_evidence if isinstance(item, dict))
 
     validation_summary = {
         "valid": validation.get("valid") is True,
@@ -136,6 +140,17 @@ def run_report_agent(context: dict[str, Any]) -> dict[str, Any]:
             "reasons": risk.get("reasons", []),
             "metrics": risk.get("metrics", {}),
             "limits": risk.get("limits", {}),
+        },
+        "simulation": {
+            "simulation_only": timetraveler.get("simulation_only") is True,
+            "not_an_observation": timetraveler.get("not_an_observation") is True,
+            "simulation_count": timetraveler.get("simulation_count"),
+            "horizon_candles": timetraveler.get("horizon_candles"),
+            "median_return_pct": timetraveler.get("median_return_pct"),
+            "p05_return_pct": timetraveler.get("p05_return_pct"),
+            "p95_return_pct": timetraveler.get("p95_return_pct"),
+            "scenario_positive_pct": timetraveler.get("scenario_positive_pct"),
+            "warning": "Scenario frequencies are not calibrated win probabilities.",
         },
         "blockers": blockers,
         "evidence": evidence,
