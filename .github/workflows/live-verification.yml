@@ -61,6 +61,17 @@ jobs:
           npm install --no-save --no-fund @playwright/test@1.48.2
           npx playwright install --with-deps chromium
 
+      - name: Restore the accumulated forecast ledger
+        uses: actions/cache@v4
+        with:
+          path: runtime/forecast_ledger.jsonl
+          # Immutable keys, matched by prefix, so each run inherits the newest
+          # previous ledger and saves its own. This is how the resolved sample
+          # grows across runs instead of resetting every time.
+          key: forecast-ledger-${{ github.run_id }}
+          restore-keys: |
+            forecast-ledger-
+
       - name: Start the application
         run: |
           mkdir -p evidence runtime
@@ -243,6 +254,13 @@ jobs:
                                    "latest candle close as its reference price, so resolving against another "
                                    "candle close can produce a degenerate 0.0% return that cannot demonstrate "
                                    "accuracy. Treat this row as a mechanics check only.")
+                  before = (data.get("ledger_before") or {})
+                  if before.get("total"):
+                      lines.append("")
+                      lines.append(f"> This run inherited {before.get('total')} forecast(s) "
+                                   f"({before.get('resolved')} already resolved) from the cached ledger, "
+                                   f"so the sample accumulates across runs. It is still small and "
+                                   f"non-stationary; treat it as a trend, not proof.")
                   if ledger.get("sample_is_small"):
                       lines.append("")
                       lines.append("> The sample is below 30 resolved forecasts. This is a mechanics check, "
