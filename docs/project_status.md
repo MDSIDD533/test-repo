@@ -4,7 +4,7 @@ Branch: `arena/a852519f-test-repo` (branched from `main` at `d0101156acc5d23801a
 
 Overall status: **PARTIALLY COMPLETE**.
 
-The checklist score is **97.3%** (90.5 / 93 items), but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
+The checklist score is **98.4%** (91.5 / 93 items), but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
 
 ## 1. Inspection findings
 
@@ -82,9 +82,9 @@ The overall percentage is the sum of item scores divided by the number of items.
 | 16 | Analysis refreshed on interval change | 1 | `/api/analyze?interval=` plus response check |
 | 17 | Old markers/levels cleared on interval change | 1 | `load` clears series and state |
 | 18 | Browser-level chart verification | 1 | Playwright run 39743024896: 7/7 passed — candles render, labels switch, zoom preserved |
-| 19 | Live WebSocket updates verified in a browser | 0 | Binance WS returns HTTP 451 from GitHub runners; REST path verified instead |
+| 19 | Live WebSocket updates verified in a browser | 1 | run `39903074565`: real Chromium, `live stream: provider=coinbase:BTC-USD updates=1 connection=live` through the server-side `/ws/candles` relay. Binance was HTTP 451 on that runner, so the fallback is what proved it — Binance's own socket stays untested (blocker 0) |
 
-**Chart: 18 / 19 = 94.7%**
+**Chart: 19 / 19 = 100%**
 
 Replay mode (added after the chart audit) is tracked separately because it is a data-availability feature, not a chart feature:
 
@@ -289,6 +289,10 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 
 ## 9. Verified working now
 
+- **Live streaming now works without Binance.** The browser connects to the app's own `/ws/candles` relay, which tries Binance and then Coinbase. On a runner where Binance returns HTTP 451, the page still reached `connection=live` and a websocket message actually moved the chart (`provider=coinbase:BTC-USD updates=1`), proven in real Chromium by `stream.spec.js` (run `39903074565`, 9 browser tests passed).
+- The relay is provider-agnostic: `GET /api/stream/providers` lists the candidates in order, every candle carries `k.provider`, and `STREAM_PROVIDER=coinbase` pins a provider. A provider that connects but sends nothing for 12 s is treated as failed and the next one is tried.
+- Replay mode refuses `/ws/candles` with close code 1008 — a recording can never present itself as a live stream (tested).
+
 - **Replay mode is real, not a mock.** `scripts/export_candles_fixture.py` ran on a CI runner that can reach Coinbase and recorded 1,500 candles (5 intervals x 300, BTCUSD 79,676–84,856) into `fixtures/candles.json`. Replaying it, `/api/candles` answered 120 valid 1h candles with `provider: replay:BTCUSDT@1h`, and all nine app timeframes produced correctly spaced rows (60/180/300/900/1800/3600/7200/14400/86400 s).
 - The agent pipeline completes on the recording: `market_data`, `market_analysis`, `prediction`, `risk_decision`, `timetraveler` and `report` all `completed`; `research` fails because the news provider is unreachable here; action stays `NO TRADE`.
 - A real Chromium run (`Replay browser check` `39900034198`) proved the chart renders the recording, shows the REPLAY badge instead of LIVE, never opens a stream, and that `/api/health` reports `data_mode: replay`.
@@ -320,6 +324,8 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 ## 10. NOT VERIFIED / blockers
 
 0c. **Replay is a recording, not live market data.** It exists because this sandbox cannot reach any exchange. The recording is a snapshot from `2026-10-23T04:12Z`; it does not update, and the freshness rule is skipped for it *by declaration only* (the live path still rejects stale candles, proven by `test_stale_candles_still_fail_outside_replay`).
+
+0a. **Binance's own socket is still unverified**, but it is no longer required for live streaming: the relay falls back to Coinbase and the browser proof above ran on Coinbase. Verifying Binance natively still needs a network Binance serves.
 
 0. **Binance itself remains unverified.** Binance answers GitHub-hosted runners with HTTP 451 (geo-block) and is unreachable from the development sandbox. The chart, intervals and server endpoints are verified through the labelled Coinbase fallback. Verifying Binance's own candles and WebSocket requires a network Binance serves.
 0b. **A defect the browser run caught:** `LiveStream` stored host timer functions and called them as object methods, which Chrome rejects with `TypeError: Illegal invocation`. Node does not enforce the receiver rule, so 18 unit tests passed while the first real browser run failed. Fixed in `acd02bd` and covered by a regression test.

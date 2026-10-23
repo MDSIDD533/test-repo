@@ -64,6 +64,17 @@ The stored aggregate report is `reports/forecast-model-evaluation-2026-10-21.jso
 
 To run a batch yourself, `gh workflow run live-forecast-batch.yml -f confirmation=RUN-LIVE-BATCH -f trials=150`. A batch is expensive runner time: three shards, 50 trials each, 180 s apart, roughly 2.5 hours.
 
+### Live streaming without Binance
+
+The browser never connects to an exchange directly. It opens `/ws/candles` on the app's own origin, and the server relays:
+
+1. **Binance** kline stream (preferred).
+2. **Coinbase** `matches` stream, aggregated into the requested interval — used automatically when Binance is unreachable or geo-blocked (HTTP 451).
+
+Every candle carries the provider that produced it (`k.provider`), and `GET /api/stream/providers?symbol=BTCUSDT` lists the order that will be tried. `STREAM_PROVIDER=coinbase` or `STREAM_PROVIDER=binance` pins one provider; `auto` is the default. A provider that connects but sends no candle within 12 s is treated as failed and the next one is tried, so an open-but-silent socket never looks healthy.
+
+This is what makes the platform usable on networks Binance blocks: CI runner verification (run `39903074565`) reached `connection=live` with `provider=coinbase:BTC-USD` and a websocket message that actually moved the chart, while Binance answered HTTP 451.
+
 ### Offline replay mode (recorded data, never presented as live)
 
 Some networks cannot reach an exchange at all — the development sandbox here cannot. Rather than invent candles, the app can replay a **recording of real provider data**:
@@ -157,7 +168,7 @@ Copy `.env.example` values into your environment if you want to change paper ris
 
 Current verified baseline (sandbox, Python 3.11.2, Node 22.22.3):
 
-- Python: **309 passed**.
+- Python: **327 passed**.
 - JavaScript chart core: **19 passed**.
 - Browser and live-provider checks: **7 browser tests passed** and the provider checks passed in run `39743024896` (commit `acd02bd`). Binance returned HTTP 451 to that runner, so the verified intervals (`5m`, `1h`, `1d`) used the labelled Coinbase fallback; Binance itself is still unverified.
 - GitHub Actions `tests` workflow: green on the latest pushed commit at time of writing; the status of the newest commit must always be checked separately.
