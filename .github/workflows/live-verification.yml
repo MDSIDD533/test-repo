@@ -113,7 +113,10 @@ jobs:
       - name: Browser verification with Chromium
         run: |
           set +e
-          npx playwright test 2>&1 | tee evidence/playwright.log
+          # Only the live specs here: replay.spec.js needs MARKET_DATA_MODE=replay
+          # and is run by the replay-browser-check workflow instead.
+          npx playwright test tests/browser/chart.spec.js tests/browser/dashboard.spec.js \
+            2>&1 | tee evidence/playwright.log
           echo "PLAYWRIGHT_EXIT=${PIPESTATUS[0]}" >> "$GITHUB_ENV"
           exit 0
 
