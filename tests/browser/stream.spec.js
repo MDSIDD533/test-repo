@@ -30,6 +30,13 @@ test('a live websocket actually updates the chart with real candles', async ({ p
     .toBeGreaterThan(0);
 
   const snapshot = await page.evaluate(() => window.__chartDebug.snapshot());
+  // Printed so the CI log records which upstream actually served the stream
+  // instead of leaving it implied.
+  console.log(
+    'live stream: provider=' + snapshot.provider +
+    ' updates=' + snapshot.liveUpdates +
+    ' connection=' + snapshot.connection
+  );
   expect(snapshot.connection).toBe('live');
   // The provider is named, and it is a real one — never "unknown".
   expect(snapshot.provider).toBeTruthy();
