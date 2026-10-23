@@ -172,6 +172,8 @@ def test_replay_tickers_are_derived_from_the_recording(replay):
 
     assert len(rows) == 1
     assert rows[0]["price"] == 100.5
-    assert rows[0]["high_24h"] == 101.0
-    assert rows[0]["low_24h"] == 99.0
+    # the renderer expects the same keys the live ticker endpoint returns
+    assert set(rows[0]) >= {"symbol", "price", "change_percent", "quote_volume", "high", "low"}
+    assert rows[0]["high"] == 101.0
+    assert rows[0]["low"] == 99.0
     assert rows[0]["window_hours"] == 40

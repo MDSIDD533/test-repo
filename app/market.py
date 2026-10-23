@@ -90,13 +90,15 @@ def replay_tickers() -> list[dict[str, Any]]:
     last = rows[-1]['close']
     change = (last / first - 1.0) * 100.0 if first else 0.0
     window = len(rows)
+    # Same keys as all_24h_tickers(); a replay row that used different names
+    # broke the dashboard renderer instead of showing data.
     return [{
         'symbol': symbol,
         'price': last,
-        'change_24h_pct': round(change, 4),
-        'volume_24h': sum(row['volume'] for row in rows),
-        'high_24h': max(row['high'] for row in rows),
-        'low_24h': min(row['low'] for row in rows),
+        'change_percent': round(change, 4),
+        'quote_volume': round(last * sum(row['volume'] for row in rows), 2),
+        'high': max(row['high'] for row in rows),
+        'low': min(row['low'] for row in rows),
         'window_hours': window,
         'replay': True,
     }]

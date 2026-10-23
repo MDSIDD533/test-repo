@@ -43,6 +43,7 @@
     replay: 'warn',
   };
   const state = {
+    replayMode: false,
     chart: null,
     candleSeries: null,
     emaSeries: [],
@@ -90,6 +91,7 @@
     try {
       const mode = await api('/api/data-mode');
       if (mode && mode.mode === 'replay') {
+        state.replayMode = true;
         const banner = $('replayBanner');
         banner.hidden = false;
         banner.textContent = 'REPLAY — recorded market data from ' + (mode.fetched_at || 'an earlier session') +
@@ -104,6 +106,10 @@
   }
 
   function setConnection(kind, message) {
+    // A recording must never be dressed up as a live connection.
+    if (state.replayMode && ['live', 'connected', 'connecting', 'rest'].indexOf(kind) !== -1) {
+      kind = 'replay';
+    }
     state.connection = kind;
     const badge = $('connBadge');
     badge.textContent = badgeLabels[kind] || String(kind).toUpperCase();
@@ -392,7 +398,7 @@
         state.hasFit = true;
       }
       state.renderedKey = key;
-      ensureStream(symbol, interval, !auto);
+      if (!state.replayMode) ensureStream(symbol, interval, !auto);
       if (built.warnings.length) {
         $('statusText').textContent = built.warnings[0];
       } else if (!state.stream.isLive()) {
@@ -476,8 +482,8 @@
     },
   };
 
-  showDataMode();
-  load({ auto: false });
+  // Resolve the data mode first so a recording never opens a live socket.
+  showDataMode().finally(function () { load({ auto: false }); });
 })();
 </script>
 </body></html>
