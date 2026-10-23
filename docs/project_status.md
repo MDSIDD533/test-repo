@@ -4,7 +4,7 @@ Branch: `arena/a852519f-test-repo` (branched from `main` at `d0101156acc5d23801a
 
 Overall status: **PARTIALLY COMPLETE**.
 
-The checklist score is **98.4%** (92.5 / 94 items), but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
+The checklist score is **98.4%** (93.5 / 95 items), but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
 
 ## 1. Inspection findings
 
@@ -201,7 +201,7 @@ Verified locally with Python 3.11.2 and Node 22.22.3:
 
 ```text
 python -m pytest -q
-328 passed, 1 warning in 3.64s
+338 passed, 1 warning in 3.47s
 
 node --test static/chart-core.test.js
 # tests 19
@@ -253,7 +253,7 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 
 | # | Item | Score | Evidence |
 |---|---|---|---|
-| 1 | Backend unit tests | 1 | 328 passing |
+| 1 | Backend unit tests | 1 | 338 passing |
 | 2 | Chart logic tests | 1 | 20 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers; `requests.get` replaced in provider tests |
@@ -281,10 +281,11 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 | 4 | Setup instructions | 1 |
 | 5 | Known limitations | 1 |
 | 6 | Recorded experiment documented | 1 |
-| 7 | VS Code synchronization instructions | 1 |
+| 7 | One-command local run + VS Code tasks | 1 | `scripts/run_local.py` (7 tests) + `.vscode/tasks.json`, `.vscode/launch.json`; verified starting the app and serving 200 |
+| 9 | VS Code synchronization instructions | 1 |
 | 8 | No secrets committed | 1 |
 
-**Documentation: 8 / 8 = 100%**
+**Documentation: 9 / 9 = 100%**
 
 Secret scan: no API keys, private keys, passwords or personal access tokens were found. The only token reference is `${{ secrets.GITHUB_TOKEN }}` in the workflow, which is provided by GitHub.
 

@@ -64,6 +64,43 @@ The stored aggregate report is `reports/forecast-model-evaluation-2026-10-21.jso
 
 To run a batch yourself, `gh workflow run live-forecast-batch.yml -f confirmation=RUN-LIVE-BATCH -f trials=150`. A batch is expensive runner time: three shards, 50 trials each, 180 s apart, roughly 2.5 hours.
 
+## Run it in VS Code (one command)
+
+Open the folder in VS Code, then **Terminal → Run Task → "Run app (live market data)"** (or press `Ctrl+Shift+B`). Nothing else to install: the runner creates `.venv`, installs `requirements.txt`, checks which exchanges are reachable, starts the server and opens the dashboard.
+
+Same thing from any terminal:
+
+```bash
+python scripts/run_local.py                  # live market data
+python scripts/run_local.py --mode replay    # bundled recording, no network needed
+python scripts/run_local.py --port 9000      # if 8000 is taken
+```
+
+What it prints before starting, so nothing is left implicit:
+
+```text
+Exchange reachability from this machine:
+  Binance   reachable  (HTTP 200)
+  Coinbase  reachable  (HTTP 200)
+Ready: http://127.0.0.1:8000
+Mode:  LIVE
+```
+
+If **no exchange is reachable** it warns and tells you to use `--mode replay`. It does not silently switch modes, because a silent fallback would let you believe you were looking at live data.
+
+VS Code helpers committed in `.vscode/`:
+
+| Entry | What it does |
+|---|---|
+| `Ctrl+Shift+B` | Run app with live market data (default build task) |
+| Run Task → "Run app (replay recording, no network)" | Same, on `fixtures/candles.json` |
+| Run Task → "Run tests" | `pytest -q` |
+| Run Task → "Chart unit tests (node)" | `node --test static/chart-core.test.js` |
+| Run and Debug → "Debug app (live market data)" | Same server under the debugger with `--reload` |
+| Run and Debug → "Debug app (replay recording)" | Same, in replay mode |
+
+**Windows note:** if `python` opens the Microsoft Store, use `py -3 scripts/run_local.py` or the interpreter picker (`Ctrl+Shift+P` → "Python: Select Interpreter") so VS Code uses a real Python 3.10+.
+
 ## Screenshots (real, from CI)
 
 Captured by `scripts/capture_screenshots.js` in real Chromium against the running app (replay mode, so no exchange access is needed). Regenerate with the `Capture screenshots` workflow; the capture fails if the page logs an error.

@@ -1,0 +1,41 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run app (live market data)",
+      "type": "shell",
+      "command": "${command:python.interpreterPath}",
+      "args": ["scripts/run_local.py", "--mode", "live"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "Run app (replay recording, no network)",
+      "type": "shell",
+      "command": "${command:python.interpreterPath}",
+      "args": ["scripts/run_local.py", "--mode", "replay"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "Run tests",
+      "type": "shell",
+      "command": "${command:python.interpreterPath}",
+      "args": ["-m", "pytest", "-q"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Chart unit tests (node)",
+      "type": "shell",
+      "command": "node",
+      "args": ["--test", "static/chart-core.test.js"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    }
+  ]
+}
