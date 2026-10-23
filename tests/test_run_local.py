@@ -120,3 +120,26 @@ def test_live_mode_warns_instead_of_silently_using_the_recording(monkeypatch, ca
     assert "WARNING: no exchange is reachable" in out
     # it warns, but it still runs what was asked for
     assert started["env"]["MARKET_DATA_MODE"] == "live"
+
+
+def test_the_double_click_wrappers_exist_and_hand_over_to_the_runner():
+    """Windows users get run.bat, everyone else run.sh. Both must be present."""
+    root = run_local.ROOT
+    bat = (root / "run.bat").read_text(encoding="utf-8")
+    sh = (root / "run.sh").read_text(encoding="utf-8")
+
+    assert "scripts\\run_local.py" in bat
+    assert "py -3" in bat          # a real Python, not the Store stub
+    assert "python.exe to PATH" in bat   # it explains what to do when Python is missing
+
+    assert "scripts/run_local.py" in sh
+    assert "sys.version_info >= (3, 10)" in sh
+    assert 'exec "$PY"' in sh or "exec" in sh
+
+
+def test_the_readme_documents_the_actual_entry_points():
+    readme = (run_local.ROOT / "README.md").read_text(encoding="utf-8")
+
+    for entry in ("run.bat", "./run.sh", "python scripts/run_local.py", "--mode replay",
+                  "Port 8000 is already in use", "Ctrl+Shift+B"):
+        assert entry in readme, entry

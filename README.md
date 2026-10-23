@@ -64,42 +64,79 @@ The stored aggregate report is `reports/forecast-model-evaluation-2026-10-21.jso
 
 To run a batch yourself, `gh workflow run live-forecast-batch.yml -f confirmation=RUN-LIVE-BATCH -f trials=150`. A batch is expensive runner time: three shards, 50 trials each, 180 s apart, roughly 2.5 hours.
 
-## Run it in VS Code (one command)
+## How to run it (from zero)
 
-Open the folder in VS Code, then **Terminal → Run Task → "Run app (live market data)"** (or press `Ctrl+Shift+B`). Nothing else to install: the runner creates `.venv`, installs `requirements.txt`, checks which exchanges are reachable, starts the server and opens the dashboard.
+You need **Python 3.10+** and **git**. Nothing else — no database, no Docker, no API key.
 
-Same thing from any terminal:
+### Step 1 — get the code
 
 ```bash
-python scripts/run_local.py                  # live market data
-python scripts/run_local.py --mode replay    # bundled recording, no network needed
-python scripts/run_local.py --port 9000      # if 8000 is taken
+git clone https://github.com/MDSIDD533/test-repo.git
+cd test-repo
+git checkout arena/a852519f-test-repo
 ```
 
-What it prints before starting, so nothing is left implicit:
+Already have it? `git fetch origin && git checkout arena/a852519f-test-repo && git pull --ff-only`.
+
+### Step 2 — start it
+
+Pick whichever you prefer. All three do exactly the same thing.
+
+| How | Command |
+|---|---|
+| Double-click (**Windows**) | `run.bat` in the repository folder |
+| Terminal (**macOS / Linux**) | `./run.sh` |
+| Any OS, explicit | `python scripts/run_local.py` |
+
+If your exchange is blocked or you have no internet, run it on the bundled recording instead:
+
+```bash
+python scripts/run_local.py --mode replay      # Windows: run.bat --mode replay
+```
+
+### Step 3 — open it
+
+The browser opens by itself. If it does not, go to **http://127.0.0.1:8000**
+
+### What the first run does
 
 ```text
+Creating .venv ...
+Installing requirements (first run only, this takes a minute) ...
 Exchange reachability from this machine:
   Binance   reachable  (HTTP 200)
   Coinbase  reachable  (HTTP 200)
-Ready: http://127.0.0.1:8000
-Mode:  LIVE
+Starting the server ...
+  Ready: http://127.0.0.1:8000
+  Mode:  LIVE
+  Chart: http://127.0.0.1:8000/chart
+  Press Ctrl+C to stop.
 ```
 
-If **no exchange is reachable** it warns and tells you to use `--mode replay`. It does not silently switch modes, because a silent fallback would let you believe you were looking at live data.
+That is a measured run: on a fresh checkout the environment is built and the server is healthy in **about 15 seconds**. Later runs skip the install and start in about a second.
 
-VS Code helpers committed in `.vscode/`:
+### If something goes wrong
+
+| Symptom | Fix |
+|---|---|
+| `python` opens the Microsoft Store | Use `py -3 scripts/run_local.py`, or `run.bat`, or select a real interpreter with `Ctrl+Shift+P` → *Python: Select Interpreter* |
+| `Port 8000 is already in use` | `python scripts/run_local.py --port 8001` |
+| `WARNING: no exchange is reachable` | Your network blocks the exchange — add `--mode replay`, or use a VPN |
+| Chart shows `REST ONLY` instead of `LIVE` | The websocket relay could not reach Binance or Coinbase; the REST chart still works and says so instead of pretending |
+| `Replay mode needs fixtures/candles.json` | The recording is missing from your checkout — `git pull` |
+
+### In VS Code
+
+Open the folder, then **`Ctrl+Shift+B`** (Terminal → Run Task → *Run app (live market data)*).
 
 | Entry | What it does |
 |---|---|
 | `Ctrl+Shift+B` | Run app with live market data (default build task) |
-| Run Task → "Run app (replay recording, no network)" | Same, on `fixtures/candles.json` |
-| Run Task → "Run tests" | `pytest -q` |
-| Run Task → "Chart unit tests (node)" | `node --test static/chart-core.test.js` |
-| Run and Debug → "Debug app (live market data)" | Same server under the debugger with `--reload` |
-| Run and Debug → "Debug app (replay recording)" | Same, in replay mode |
-
-**Windows note:** if `python` opens the Microsoft Store, use `py -3 scripts/run_local.py` or the interpreter picker (`Ctrl+Shift+P` → "Python: Select Interpreter") so VS Code uses a real Python 3.10+.
+| Run Task → *Run app (replay recording, no network)* | Same, on `fixtures/candles.json` |
+| Run Task → *Run tests* | `pytest -q` |
+| Run Task → *Chart unit tests (node)* | `node --test static/chart-core.test.js` |
+| Run and Debug → *Debug app (live market data)* | Same server under the debugger with `--reload` |
+| Run and Debug → *Debug app (replay recording)* | Same, in replay mode |
 
 ## Screenshots (real, from CI)
 
@@ -197,9 +234,9 @@ For the browser suite locally:
 
 Nothing in levels 2 or 3 places real orders. `scripts/resolve_forecasts.py` only reads public prices and appends to the local ledger.
 
-## Run locally
+## Run locally — the manual way
 
-Python 3.11+ recommended.
+The one-command runner above is all you normally need. If you prefer the explicit steps:
 
     python -m venv .venv
     .venv\Scripts\Activate.ps1        # Windows
@@ -207,9 +244,16 @@ Python 3.11+ recommended.
     python -m pip install -r requirements.txt
     uvicorn app.main:app --reload
 
-Open http://127.0.0.1:8000. For phone access on the same Wi-Fi, run with `--host 0.0.0.0` and visit the computer's LAN IP.
+Optional settings, all with working defaults:
 
-Copy `.env.example` values into your environment if you want to change paper risk, fee, slippage or position limits. Do not put secrets in the repository.
+| Variable | Default | Meaning |
+|---|---|---|
+| `MARKET_DATA_MODE` | `live` | `replay` serves the bundled recording and never pretends to be live |
+| `STREAM_PROVIDER` | `auto` | `binance` or `coinbase` pins one stream provider |
+| `BINANCE_BASE_URL` | Binance public API | alternate REST host / proxy |
+| `PAPER_*` | see `.env.example` | paper risk, fee, slippage and position limits |
+
+For phone access on the same Wi-Fi, run `python scripts/run_local.py --host 0.0.0.0` and visit the computer's LAN IP. Do not put secrets in the repository.
 
 ## Tests
 

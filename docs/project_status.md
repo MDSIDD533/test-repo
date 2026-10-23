@@ -201,7 +201,7 @@ Verified locally with Python 3.11.2 and Node 22.22.3:
 
 ```text
 python -m pytest -q
-338 passed, 1 warning in 3.47s
+340 passed, 1 warning in 3.60s
 
 node --test static/chart-core.test.js
 # tests 19
@@ -253,7 +253,7 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 
 | # | Item | Score | Evidence |
 |---|---|---|---|
-| 1 | Backend unit tests | 1 | 338 passing |
+| 1 | Backend unit tests | 1 | 340 passing |
 | 2 | Chart logic tests | 1 | 20 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers; `requests.get` replaced in provider tests |
@@ -281,7 +281,7 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 | 4 | Setup instructions | 1 |
 | 5 | Known limitations | 1 |
 | 6 | Recorded experiment documented | 1 |
-| 7 | One-command local run + VS Code tasks | 1 | `scripts/run_local.py` (7 tests) + `.vscode/tasks.json`, `.vscode/launch.json`; verified starting the app and serving 200 |
+| 7 | One-command local run + VS Code tasks | 1 | `scripts/run_local.py` (9 tests), `run.bat` / `run.sh` + `.vscode/tasks.json`, `.vscode/launch.json`; verified starting the app and serving 200 |
 | 9 | VS Code synchronization instructions | 1 |
 | 8 | No secrets committed | 1 |
 
