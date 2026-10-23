@@ -64,6 +64,19 @@ The stored aggregate report is `reports/forecast-model-evaluation-2026-10-21.jso
 
 To run a batch yourself, `gh workflow run live-forecast-batch.yml -f confirmation=RUN-LIVE-BATCH -f trials=150`. A batch is expensive runner time: three shards, 50 trials each, 180 s apart, roughly 2.5 hours.
 
+## Screenshots (real, from CI)
+
+Captured by `scripts/capture_screenshots.js` in real Chromium against the running app (replay mode, so no exchange access is needed). Regenerate with the `Capture screenshots` workflow; the capture fails if the page logs an error.
+
+| What | Screenshot |
+|---|---|
+| Dashboard: scanner, chart embed, paper account, agent cards, evaluation, ledger, operator log | ![](docs/screenshots/01-dashboard.png) |
+| The 150-trial live batch, with its baselines and verdict | ![](docs/screenshots/02-recorded-batch.png) |
+| Full chart, 5m, 200 recorded candles, EMA/TP-SL overlays | ![](docs/screenshots/03-chart.png) |
+| Same chart switched to 1h — labels, data source and analysis all change | ![](docs/screenshots/04-chart-1h.png) |
+| Agent pipeline after a real run: 7 stages, each with its true status | ![](docs/screenshots/05-agents.png) |
+| Operator log: structured events with levels | ![](docs/screenshots/06-operator-log.png) |
+
 ### Live streaming without Binance
 
 The browser never connects to an exchange directly. It opens `/ws/candles` on the app's own origin, and the server relays:
