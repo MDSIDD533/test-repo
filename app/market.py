@@ -1,5 +1,7 @@
 from __future__ import annotations
 import os
+from pathlib import Path
+
 import requests
 from functools import lru_cache
 from typing import Any
@@ -27,6 +29,109 @@ COINBASE_BASE_URL = 'https://api.exchange.coinbase.com'
 COINBASE_GRANULARITIES = {'1m': 60, '5m': 300, '15m': 900, '1h': 3600, '6h': 21600, '1d': 86400}
 COINBASE_PRODUCTS = {'BTCUSDT': 'BTC-USD'}
 _PROVIDER_USED: dict[tuple[str, str], str] = {}
+
+# Replay mode serves a *recording* of real provider candles. It exists because
+# some networks cannot reach an exchange at all. It is never allowed to look
+# live: every consumer can ask what it is serving and when it was recorded.
+REPLAY_MODE = os.getenv('MARKET_DATA_MODE', 'live').strip().lower() == 'replay'
+REPLAY_FIXTURE = Path(os.getenv('MARKET_FIXTURE', 'fixtures/candles.json'))
+# Intervals the recording does not contain, and the interval they are built from.
+# Resampling real candles is arithmetic on real data; nothing is invented.
+REPLAY_DERIVED = {'3m': '1m', '30m': '15m', '2h': '1h', '4h': '1h'}
+_REPLAY_CACHE: dict[str, Any] = {}
+
+
+def replay_metadata() -> dict[str, Any]:
+    """Describe the recording being served, or say that there is none."""
+    if not REPLAY_MODE:
+        return {'mode': 'live'}
+    fixture = _load_replay_fixture()
+    if not fixture:
+        return {'mode': 'replay', 'available': False, 'fixture': str(REPLAY_FIXTURE)}
+    return {
+        'mode': 'replay',
+        'available': True,
+        'fixture': str(REPLAY_FIXTURE),
+        'symbol': fixture.get('symbol'),
+        'fetched_at': fixture.get('fetched_at'),
+        'newest_candle': fixture.get('newest_candle'),
+        'providers': fixture.get('providers'),
+        'intervals': sorted(fixture.get('intervals', {})),
+        'derived': sorted(REPLAY_DERIVED),
+        'note': 'Recorded market data, replayed with its original timestamps. Not live.',
+    }
+
+
+def _load_replay_fixture() -> dict[str, Any] | None:
+    if _REPLAY_CACHE.get('fixture') is None and REPLAY_FIXTURE.exists():
+        try:
+            import json
+
+            payload = json.loads(REPLAY_FIXTURE.read_text(encoding='utf-8'))
+            if isinstance(payload, dict) and isinstance(payload.get('intervals'), dict):
+                _REPLAY_CACHE['fixture'] = payload
+        except (OSError, ValueError):
+            return None
+    return _REPLAY_CACHE.get('fixture')
+
+
+def _replay_rows(symbol: str, interval: str, limit: int) -> list[dict[str, float]]:
+    fixture = _load_replay_fixture()
+    if not fixture:
+        raise MarketDataError(
+            f'Replay mode is on but no recording was found at {REPLAY_FIXTURE}. '
+            'Run scripts/export_candles_fixture.py where an exchange is reachable.'
+        )
+    if str(fixture.get('symbol', '')).upper() != symbol:
+        raise MarketDataError(
+            f'Replay recording only contains {fixture.get("symbol")}, not {symbol}'
+        )
+    intervals = fixture['intervals']
+    source_interval = interval if interval in intervals else REPLAY_DERIVED.get(interval)
+    if source_interval is None or source_interval not in intervals:
+        raise MarketDataError(f'Replay recording has no {interval} candles and no source to derive them')
+
+    rows = [
+        {'time': float(r[0]), 'open': float(r[1]), 'high': float(r[2]),
+         'low': float(r[3]), 'close': float(r[4]), 'volume': float(r[5])}
+        for r in intervals[source_interval]
+    ]
+    if source_interval != interval:
+        rows = _resample(rows, INTERVAL_SECONDS[source_interval], INTERVAL_SECONDS[interval])
+    if not rows:
+        raise MarketDataError(f'Replay recording produced no {interval} candles')
+    _PROVIDER_USED[(symbol, interval)] = (
+        f'replay:{fixture.get("symbol")}@{source_interval}'
+        + (f'->{interval}' if source_interval != interval else '')
+    )
+    return rows[-max(30, min(limit, 500)):]
+
+
+INTERVAL_SECONDS = {'1m': 60, '3m': 180, '5m': 300, '15m': 900, '30m': 1800,
+                    '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '1d': 86400}
+
+
+def _resample(rows: list[dict[str, float]], source_seconds: int, target_seconds: int) -> list[dict[str, float]]:
+    """Aggregate real candles into a coarser interval; never invents a candle."""
+    if target_seconds % source_seconds != 0:
+        raise MarketDataError(
+            f'Cannot derive {target_seconds}s candles from {source_seconds}s candles'
+        )
+    buckets: dict[int, dict[str, float]] = {}
+    for row in rows:
+        bucket = int(row['time'] // target_seconds) * target_seconds
+        current = buckets.get(bucket)
+        if current is None:
+            buckets[bucket] = {
+                'time': float(bucket), 'open': row['open'], 'high': row['high'],
+                'low': row['low'], 'close': row['close'], 'volume': row['volume'],
+            }
+            continue
+        current['high'] = max(current['high'], row['high'])
+        current['low'] = min(current['low'], row['low'])
+        current['close'] = row['close']
+        current['volume'] += row['volume']
+    return [buckets[key] for key in sorted(buckets)]
 
 
 def provider_used(symbol: str, interval: str) -> str | None:
@@ -132,6 +237,8 @@ def candles(symbol: str, interval: str = '5m', limit: int = 200) -> list[dict[st
         raise ValueError('Unsupported candle interval')
     symbol = symbol.upper()
     window = max(30, min(limit, 500))
+    if REPLAY_MODE:
+        return _replay_rows(symbol, interval, window)
     try:
         if symbol not in eligible_usdt_spot_symbols():
             raise ValueError('Symbol is not an eligible Binance USDT spot pair')

@@ -5,7 +5,9 @@ import time
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
-from app.market import MarketDataError, all_24h_tickers, candles, provider_used
+from app.market import (
+    MarketDataError, REPLAY_MODE, all_24h_tickers, candles, provider_used, replay_metadata,
+)
 from app.analysis import analyze_candles
 from app import paper
 from app.agents import run_agent_pipeline
@@ -116,7 +118,22 @@ def batch_summary_report():
 
 
 @app.get('/api/health')
-def health(): return {'status':'ok','version':app.version,'mode':'PAPER ONLY','live_trading_enabled':False}
+def health():
+    data = replay_metadata()
+    return {
+        'status': 'ok',
+        'version': app.version,
+        'mode': 'PAPER ONLY',
+        'live_trading_enabled': False,
+        'data_mode': data.get('mode', 'live'),
+        'replay': data if data.get('mode') == 'replay' else None,
+    }
+
+
+@app.get('/api/data-mode')
+def data_mode():
+    """State whether candles are live or replayed, and what the recording is."""
+    return replay_metadata()
 
 
 @app.get('/api/agents/run/{symbol}')
@@ -125,7 +142,9 @@ def run_agents(symbol: str, interval: str = '5m', simulation_count: int = Query(
     if simulation_count not in {100, 500, 1000}:
         raise HTTPException(status_code=400, detail='simulation_count must be 100, 500, or 1000')
     try:
-        market_agent = make_market_data_agent(candles, interval=interval, limit=220)
+        market_agent = make_market_data_agent(
+            candles, interval=interval, limit=220, replay=REPLAY_MODE
+        )
         research_agent = make_research_agent(fetch_crypto_news)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

@@ -6,7 +6,7 @@
 <script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js"></script></head>
 <body>
 <header><div><h1>◈ Full Market Chart</h1><div class="muted">Interactive candles · indicators · live stream with REST fallback</div></div><div class="controls"><a href="/">← Dashboard</a><input id="symbol" value="BTCUSDT" aria-label="Coin symbol" list="coins" autocomplete="off"><datalist id="coins"><option>BTCUSDT</option><option>ETHUSDT</option><option>BNBUSDT</option><option>SOLUSDT</option><option>XRPUSDT</option><option>DOGEUSDT</option><option>ADAUSDT</option><option>LINKUSDT</option></datalist><select id="interval" aria-label="Timeframe"><option value="1m">1m</option><option value="3m">3m</option><option value="5m" selected>5m</option><option value="15m">15m</option><option value="30m">30m</option><option value="1h">1h</option><option value="2h">2h</option><option value="4h">4h</option><option value="1d">1d</option></select><select id="count" aria-label="Candles"><option value="100">100 candles</option><option value="200" selected>200 candles</option><option value="500">500 candles</option></select><button id="load" type="button">Refresh now</button><button id="full" type="button">Fullscreen</button></div></header>
-<main><section class="panel"><div class="chart-head"><b id="chartTitle">BTCUSDT · 5m</b><div class="controls"><span id="candleState" class="badge">WAITING</span><label><input type="checkbox" id="ema" checked> EMA 9/20/50/200</label><label><input type="checkbox" id="levels" checked> Entry/TP/SL</label></div></div><div id="status" class="status" role="status" aria-live="polite"><span id="connBadge" class="badge">CONNECTING</span><span id="statusText">Loading market data…</span></div><div class="meta"><div><small>Selected symbol</small><b id="metaSymbol">BTCUSDT</b></div><div><small>Selected timeframe</small><b id="metaInterval">5m</b></div><div><small>Current price</small><b id="currentPrice">—</b></div><div><small>Candles loaded</small><b id="candleCount">—</b></div><div><small>Last successful update</small><b id="lastUpdate">—</b></div><div><small>Data source</small><b id="dataSource">—</b></div></div><div id="chart"></div><div class="note">The live stream updates the current candle in place; completed candles and signal markers are never rebuilt from tick data. If the stream drops, the chart reconnects with bounded backoff and keeps a REST refresh every 15 seconds. If data is stale, the badge says so instead of showing LIVE.</div></section>
+<main><div id="replayBanner" hidden style="margin:0 0 12px;padding:12px 14px;border:1px solid #b45309;border-radius:10px;background:#3b2410;color:#fde68a;font-weight:600;line-height:1.45"></div><section class="panel"><div class="chart-head"><b id="chartTitle">BTCUSDT · 5m</b><div class="controls"><span id="candleState" class="badge">WAITING</span><label><input type="checkbox" id="ema" checked> EMA 9/20/50/200</label><label><input type="checkbox" id="levels" checked> Entry/TP/SL</label></div></div><div id="status" class="status" role="status" aria-live="polite"><span id="connBadge" class="badge">CONNECTING</span><span id="statusText">Loading market data…</span></div><div class="meta"><div><small>Selected symbol</small><b id="metaSymbol">BTCUSDT</b></div><div><small>Selected timeframe</small><b id="metaInterval">5m</b></div><div><small>Current price</small><b id="currentPrice">—</b></div><div><small>Candles loaded</small><b id="candleCount">—</b></div><div><small>Last successful update</small><b id="lastUpdate">—</b></div><div><small>Data source</small><b id="dataSource">—</b></div></div><div id="chart"></div><div class="note">The live stream updates the current candle in place; completed candles and signal markers are never rebuilt from tick data. If the stream drops, the chart reconnects with bounded backoff and keeps a REST refresh every 15 seconds. If data is stale, the badge says so instead of showing LIVE.</div></section>
 <aside class="panel"><h2 style="margin-top:0">Signal analysis</h2><div id="signal" class="muted">Loading…</div><div id="kv" class="kv" style="margin-top:12px"></div><div id="levelsBox" class="levels"></div><p class="note">Heuristic signals are not guaranteed or calibrated profit probabilities. This page cannot place live orders.</p></aside></main>
 <script src="/chart-core.js"></script>
 <script>
@@ -28,6 +28,7 @@
     offline: 'OFFLINE',
     error: 'DATA ERROR',
     stopped: 'PAUSED',
+    replay: 'REPLAY',
   };
   const badgeClasses = {
     connecting: 'warn',
@@ -39,6 +40,7 @@
     offline: 'error',
     error: 'error',
     stopped: '',
+    replay: 'warn',
   };
   const state = {
     chart: null,
@@ -82,6 +84,23 @@
   function money(value) {
     if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
     return Number(value).toLocaleString(undefined, { maximumFractionDigits: 8 });
+  }
+
+  async function showDataMode() {
+    try {
+      const mode = await api('/api/data-mode');
+      if (mode && mode.mode === 'replay') {
+        const banner = $('replayBanner');
+        banner.hidden = false;
+        banner.textContent = 'REPLAY — recorded market data from ' + (mode.fetched_at || 'an earlier session') +
+          ' (provider ' + ((mode.providers || []).join(', ') || 'n/a') + '). Timestamps are the recording\'s own. ' +
+          'This chart is NOT live and no trade is authorized.';
+        setConnection('replay', 'Serving a recording, not live market data.');
+      }
+    } catch (error) {
+      // A missing mode endpoint must never be presented as live data.
+      setConnection('stale', 'Could not confirm whether data is live: ' + error.message);
+    }
   }
 
   function setConnection(kind, message) {
@@ -457,6 +476,7 @@
     },
   };
 
+  showDataMode();
   load({ auto: false });
 })();
 </script>
