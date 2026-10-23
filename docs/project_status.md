@@ -4,7 +4,7 @@ Branch: `arena/a852519f-test-repo` (branched from `main` at `d0101156acc5d23801a
 
 Overall status: **PARTIALLY COMPLETE**.
 
-The checklist score is **95.7%** (89 / 93 items), but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
+The checklist score is **97.3%** (90.5 / 93 items), but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
 
 ## 1. Inspection findings
 
@@ -72,7 +72,7 @@ The overall percentage is the sum of item scores divided by the number of items.
 | 6 | Ignore stale callbacks from old sockets | 1 | generation token test |
 | 7 | Validate kline fields/OHLC/interval | 1 | `normalizeKline`, 3 Node tests |
 | 8 | Chronological order and duplicate prevention | 1 | `upsertCandle`, `buildCandleSeries` |
-| 9 | Preserve zoom/pan during refresh | 0.5 | avoids `fitContent` except new selection; not browser-verified |
+| 9 | Preserve zoom/pan during refresh | 1 | browser test _a manual refresh keeps the zoomed viewport instead of resetting it_: wheel-zooms, clicks Refresh, asserts the visible range moves by <= 2 bars (passing in the 7/7 run) |
 | 10 | Connection state, source and last update | 1 | `setConnection`, `setLastUpdate`, DOM IDs |
 | 11 | Stale-feed indication | 1 | `STALE_AFTER_MS`, `checkStreamHealth` |
 | 12 | Never show LIVE while disconnected | 1 | `rest: 'REST ONLY'`, `offline`, tests |
@@ -84,7 +84,7 @@ The overall percentage is the sum of item scores divided by the number of items.
 | 18 | Browser-level chart verification | 1 | Playwright run 39743024896: 7/7 passed — candles render, labels switch, zoom preserved |
 | 19 | Live WebSocket updates verified in a browser | 0 | Binance WS returns HTTP 451 from GitHub runners; REST path verified instead |
 
-**Chart: 17.5 / 19 = 92.1%**
+**Chart: 18 / 19 = 94.7%**
 
 Replay mode (added after the chart audit) is tracked separately because it is a data-availability feature, not a chart feature:
 
@@ -117,9 +117,9 @@ Replay mode (added after the chart audit) is tracked separately because it is a 
 | 12 | Report combines validation, analysis, research, prediction, risk, errors | 1 | `report_agent`, blockers tests |
 | 13 | Independent stage failure/status handling | 1 | `test_agents` |
 | 14 | Dashboard shows actual stage state | 1 | `runAgentAnalysis`, `UNAVAILABLE` label |
-| 15 | End-to-end live-provider verification | 0 | Binance/CoinDesk unreachable here |
+| 15 | End-to-end live-provider verification | 1 | run `39901160307`: pipeline status `completed_no_trade` (no stage failed) on real Coinbase candles with real CoinDesk research (`PASS`, 8 items). Binance specifically is still unverified and is tracked as blocker 0, not as this item |
 
-**Agents: 13.5 / 15 = 90.0%**
+**Agents: 14.5 / 15 = 96.7%**
 
 ## 5. Prediction evaluation
 
