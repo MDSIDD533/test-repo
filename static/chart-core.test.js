@@ -64,6 +64,19 @@ test('normalizeKline accepts a valid 1h candle only on an hour boundary', () => 
   assert.equal(Core.normalizeKline(misaligned, { symbol: 'BTCUSDT', interval: '1h' }), null);
 });
 
+test('a relayed kline keeps the provider that produced it', () => {
+  const withProvider = kline();
+  withProvider.k.provider = 'coinbase:BTC-USD';
+  const normalized = Core.normalizeKline(withProvider);
+  assert.equal(normalized.provider, 'coinbase:BTC-USD');
+
+  // A provider that is missing or not a string must not be invented.
+  assert.equal(Core.normalizeKline(kline()).provider, null);
+  const numeric = kline();
+  numeric.k.provider = 42;
+  assert.equal(Core.normalizeKline(numeric).provider, null);
+});
+
 test('normalizeKline rejects wrong symbol, wrong interval and inconsistent OHLC', () => {
   assert.equal(Core.normalizeKline(kline(), { symbol: 'ETHUSDT', interval: '1m' }), null);
   assert.equal(Core.normalizeKline(kline(), { symbol: 'BTCUSDT', interval: '5m' }), null);

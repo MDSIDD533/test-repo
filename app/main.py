@@ -2,9 +2,12 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 import time
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
+from app.stream_relay import (
+    INTERVAL_SECONDS as STREAM_INTERVALS, provider_order, stream_messages,
+)
 from app.market import (
     MarketDataError, REPLAY_MODE, all_24h_tickers, candles, provider_used, replay_metadata,
 )
@@ -115,6 +118,64 @@ def batch_summary_report():
         'is_live_now': False,
         'note': 'Stored result of a completed live batch, not a live measurement.',
     }
+
+
+@app.get('/api/stream/providers')
+def stream_providers(symbol: str = 'BTCUSDT'):
+    """List the stream providers this server would try, in order.
+
+    Exposed so the UI and the browser tests can prove which upstream is in use
+    instead of assuming Binance.
+    """
+    import os as _os
+
+    override = _os.getenv('STREAM_PROVIDER', 'auto').strip().lower()
+    return {
+        'symbol': symbol.strip().upper(),
+        'candidates': provider_order(symbol.strip().upper(), override),
+        'override': override,
+        'mode': 'replay' if REPLAY_MODE else 'live',
+        'note': (
+            'Replay mode serves a recording over REST; no live stream is opened.'
+            if REPLAY_MODE else
+            'The relay tries these in order and every candle states which one produced it.'
+        ),
+    }
+
+
+@app.websocket('/ws/candles')
+async def candles_stream(websocket: WebSocket, symbol: str = 'BTCUSDT', interval: str = '5m'):
+    """Relay a live candle stream from the app's own origin.
+
+    The browser no longer connects to Binance directly: Binance geo-blocks many
+    networks (HTTP 451), and a third-party socket cannot be verified from the
+    page. The relay tries Binance, then Coinbase, and every message states which
+    provider produced it.
+    """
+    await websocket.accept()
+    symbol = (symbol or 'BTCUSDT').strip().upper()
+    interval = (interval or '5m').strip()
+    if interval not in STREAM_INTERVALS:
+        await websocket.close(code=1008, reason=f'Unsupported interval: {interval}')
+        return
+    if REPLAY_MODE:
+        # A recording does not update. Refusing here is what keeps replay honest.
+        await websocket.close(code=1008, reason='Replay mode serves a recording; no live stream')
+        return
+
+    errors: list[dict] = []
+    try:
+        async for message in stream_messages(symbol, interval, errors=errors):
+            await websocket.send_text(json.dumps(message))
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:  # noqa: BLE001
+        observability.log_event('warning', 'stream_error', symbol=symbol, interval=interval,
+                     error=f'{type(exc).__name__}: {exc}', provider_errors=errors)
+        try:
+            await websocket.close(code=1011, reason='stream failed')
+        except RuntimeError:
+            pass
 
 
 @app.get('/api/health')

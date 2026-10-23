@@ -267,7 +267,9 @@
     updateCandleState(!candle.closed);
     setLastUpdate(new Date());
     $('currentPrice').textContent = money(candle.close);
-    $('dataSource').textContent = 'Binance live kline';
+    state.liveUpdates = (state.liveUpdates || 0) + 1;
+    state.lastProvider = candle.provider || null;
+    $('dataSource').textContent = (candle.provider ? candle.provider : 'unknown provider') + ' live';
     setConnection('live', 'Live ' + candle.symbol + ' ' + candle.interval + ' candle · ' +
       candle.close.toLocaleString(undefined, { maximumFractionDigits: 8 }) +
       (candle.closed ? ' · candle closed' : ' · forming'));
@@ -297,6 +299,14 @@
   function ensureStream(symbol, interval, forceRestart) {
     if (!state.stream) {
       state.stream = new Core.LiveStream({
+        // Same-origin relay: the browser never talks to an exchange directly.
+        // The server tries Binance, then Coinbase, so a geo-blocked network
+        // still gets a live stream.
+        urlFor: function (symbol, interval) {
+          const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
+          return scheme + '//' + location.host + '/ws/candles?symbol=' +
+            encodeURIComponent(symbol) + '&interval=' + encodeURIComponent(interval);
+        },
         onState: mapStreamState,
         onCandle: handleLiveCandle,
         onError: (error) => {
@@ -476,6 +486,9 @@
         candles: state.candles.length,
         limit: state.limit,
         hasFit: state.hasFit,
+        // Proof that a websocket message actually changed the chart.
+        liveUpdates: state.liveUpdates || 0,
+        provider: state.lastProvider || null,
       };
     },
     visibleRange: function () {

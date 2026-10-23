@@ -177,3 +177,32 @@ def test_replay_tickers_are_derived_from_the_recording(replay):
     assert rows[0]["high"] == 101.0
     assert rows[0]["low"] == 99.0
     assert rows[0]["window_hours"] == 40
+
+
+def test_the_stream_endpoint_refuses_to_pretend_a_recording_is_live(monkeypatch):
+    """Replay mode must never open a live stream, even if a client asks for one."""
+    from fastapi.testclient import TestClient
+    from app import main
+
+    monkeypatch.setattr(main, "REPLAY_MODE", True)
+    client = TestClient(main.app)
+
+    with client.websocket_connect("/ws/candles?symbol=BTCUSDT&interval=5m") as websocket:
+        message = websocket.receive()
+        # Starlette reports the server's close frame; no candle may ever arrive.
+        assert message["type"] == "websocket.close"
+        assert "Replay mode" in message.get("reason", "")
+        assert message.get("code") == 1008
+
+
+def test_the_stream_endpoint_rejects_an_unsupported_interval(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import main
+
+    monkeypatch.setattr(main, "REPLAY_MODE", False)
+    client = TestClient(main.app)
+
+    with client.websocket_connect("/ws/candles?symbol=BTCUSDT&interval=7m") as websocket:
+        message = websocket.receive()
+        assert message["type"] == "websocket.close"
+        assert message.get("code") == 1008

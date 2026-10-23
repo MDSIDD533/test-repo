@@ -136,6 +136,9 @@
       close,
       volume,
       closed: k.x === true,
+      // Set by the server-side relay so the UI can name the real upstream
+      // provider instead of assuming Binance.
+      provider: typeof k.provider === 'string' ? k.provider : null,
       symbol,
       interval,
       eventTime: isFiniteNumber(toNumber(k.E)) ? toNumber(k.E) : null,
