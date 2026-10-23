@@ -441,7 +441,11 @@ def paper_trades(): return {'trades':paper.list_trades()}
 @app.post('/api/paper/refresh')
 def paper_refresh():
     try:
-        rows = all_24h_tickers()
+        if REPLAY_MODE:
+            from app.market import replay_tickers
+            rows = replay_tickers()
+        else:
+            rows = all_24h_tickers()
         prices = {row['symbol']: row['price'] for row in rows}
         closed = paper.update_prices(prices)
         return {'updated': True, 'closed_trades': closed, 'account': paper.account()}

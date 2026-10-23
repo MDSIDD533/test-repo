@@ -1,11 +1,14 @@
 """Replay mode must serve real recorded candles and never pretend to be live."""
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 
 from app import market
 from app.market_data_agent import CandleValidationError, make_market_data_agent, validate_candles
+
+ROOT = Path(__file__).resolve().parents[1]
 
 NOW = datetime(2026, 5, 1, 12, 0, 0, tzinfo=timezone.utc).timestamp()
 
@@ -206,3 +209,34 @@ def test_the_stream_endpoint_rejects_an_unsupported_interval(monkeypatch):
         message = websocket.receive()
         assert message["type"] == "websocket.close"
         assert message.get("code") == 1008
+
+
+def test_paper_refresh_uses_the_recording_instead_of_failing(replay, monkeypatch):
+    """A 502 here made the dashboard show a console error during replay."""
+    from fastapi.testclient import TestClient
+    from app import main
+
+    monkeypatch.setattr(main, "REPLAY_MODE", True)
+    response = TestClient(main.app).post("/api/paper/refresh")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["updated"] is True
+    assert payload["account"]["equity"] > 0
+
+
+def test_the_replay_banner_spans_the_page_grid():
+    """As a plain grid child the banner took column 1 and squeezed the chart."""
+    html = (ROOT / "static" / "chart.html").read_text(encoding="utf-8")
+
+    start = html.index('id="replayBanner"')
+    tag = html[start:start + 260]
+    assert "grid-column:1/-1" in tag
+    assert "align-self:start" in tag
+
+
+def test_the_chart_is_resized_when_the_layout_changes():
+    html = (ROOT / "static" / "chart.html").read_text(encoding="utf-8")
+
+    assert "applyOptions({ width: host.clientWidth, height: host.clientHeight })" in html
+    assert "window.addEventListener('resize'" in html
