@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.market import candles
+from app.market import candles, provider_used
 from app.analysis import analyze_candles
 from app.news_provider import fetch_crypto_news
 from app.short_horizon_forecast import compare_forecast, make_two_minute_forecast
@@ -61,9 +61,14 @@ def _coinbase_btc_candles(limit: int = 40) -> list[dict[str, float]]:
 
 
 def fetch_experiment_candles(symbol: str, limit: int) -> tuple[list[dict[str, float]], str]:
-    """Use Binance first; fall back to Coinbase for BTCUSDT observation trials."""
+    """Fetch 1m candles and report the provider that actually served them.
+
+    ``app.market.candles`` falls back to Coinbase for BTCUSDT when Binance is
+    unreachable, so the provider must be read back rather than assumed.
+    """
     try:
-        return candles(symbol, "1m", limit), "binance"
+        rows = candles(symbol, "1m", limit)
+        return rows, provider_used(symbol, "1m") or "binance"
     except Exception as binance_error:
         if symbol != "BTCUSDT":
             raise RuntimeError(
@@ -102,6 +107,66 @@ def fetch_experiment_spot_price(symbol: str, provider: str) -> float:
     return price
 
 
+def fetch_actual_price_with_fallback(
+    symbol: str,
+    provider: str,
+    target_time: float,
+    *,
+    tolerance_seconds: float = 90.0,
+    candle_limit: int = 40,
+) -> dict[str, Any]:
+    """Observe the target-time price, with a documented nearest-candle fallback.
+
+    A spot ticker is preferred. If it is unavailable, the closest completed
+    1-minute candle close within ``tolerance_seconds`` is used and the time
+    difference is returned. A wider gap raises instead of silently pretending
+    the observation happened at the target timestamp.
+    """
+    try:
+        price = fetch_experiment_spot_price(symbol, provider)
+        return {
+            "price": price,
+            "source": "spot_ticker",
+            "provider": provider,
+            "observed_at": target_time,
+            "target_time": target_time,
+            "time_difference_seconds": 0.0,
+        }
+    except Exception as spot_error:
+        rows, fallback_provider = fetch_experiment_candles(symbol, candle_limit)
+        candidates = []
+        for row in rows:
+            close_time = float(row["time"]) + 60.0
+            # Use only candles that had already closed by the target time. A
+            # later candle would leak post-horizon prices into the observation.
+            if close_time > target_time:
+                continue
+            difference = target_time - close_time
+            candidates.append((difference, close_time, float(row["close"])))
+        if not candidates:
+            raise RuntimeError(
+                f"No ticker and no completed candle before the target time. "
+                f"Ticker error: {spot_error}"
+            ) from spot_error
+        difference, close_time, price = min(candidates, key=lambda item: item[0])
+        if difference > tolerance_seconds:
+            raise RuntimeError(
+                f"Nearest completed candle is {difference:.1f}s from the target time, "
+                f"beyond the {tolerance_seconds:.0f}s tolerance. Ticker error: {spot_error}"
+            )
+        if not math.isfinite(price) or price <= 0:
+            raise RuntimeError("Nearest-candle fallback returned an invalid price")
+        return {
+            "price": price,
+            "source": "nearest_completed_1m_candle_close",
+            "provider": fallback_provider,
+            "observed_at": close_time,
+            "target_time": target_time,
+            "time_difference_seconds": round(difference, 3),
+            "ticker_error": f"{type(spot_error).__name__}: {spot_error}",
+        }
+
+
 def main() -> int:
     symbol = (sys.argv[1] if len(sys.argv) > 1 else "BTCUSDT").strip().upper()
     started_at = utc_now()
@@ -137,7 +202,14 @@ def main() -> int:
         # Freeze a spot-ticker baseline at the start, rather than an unfinished
         # one-minute candle close, to align the 120-second measurement horizon.
         baseline_price = fetch_experiment_spot_price(symbol, data_provider)
+        baseline_observed_at = time.time()
+        target_time = baseline_observed_at + 120.0
         forecast["baseline_price"] = baseline_price
+        forecast["forecast_created_at"] = datetime.fromtimestamp(
+            baseline_observed_at, timezone.utc
+        ).isoformat()
+        forecast["baseline_observed_at"] = forecast["forecast_created_at"]
+        forecast["target_time"] = datetime.fromtimestamp(target_time, timezone.utc).isoformat()
         forecast["forecast_price"] = round(
             baseline_price * (1.0 + forecast["expected_return_pct"] / 100.0), 8
         )
@@ -154,16 +226,18 @@ def main() -> int:
             "forecast": forecast,
         })
         print(json.dumps({"phase": "FORECAST_LOCKED", **report}, indent=2), flush=True)
-        time.sleep(120)
+        remaining = target_time - time.time()
+        if remaining > 0:
+            time.sleep(remaining)
 
-        # Use a spot ticker at the end too; the newest candle close may be stale.
-        actual_price = fetch_experiment_spot_price(symbol, data_provider)
-        final_provider = data_provider
+        observation = fetch_actual_price_with_fallback(symbol, data_provider, target_time)
+        actual_price = observation["price"]
         comparison = compare_forecast(forecast, actual_price)
         report.update({
             "finished_at": utc_now(),
-            "market_data_provider_at_finish": final_provider,
-            "actual_price_after_120s": actual_price,
+            "market_data_provider_at_finish": observation["provider"],
+            "actual_price_after_horizon": actual_price,
+            "actual_observation": observation,
             "comparison": comparison,
             "algorithm_upgrade_recommended": not comparison["almost_same"],
             "upgrade_note": (

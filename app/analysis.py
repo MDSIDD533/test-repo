@@ -173,6 +173,8 @@ def analyze_candles(
         "ema50": round(ema50, 8),
         "ema200": round(ema200, 8),
         "macd": "BULLISH" if macd_bull else "BEARISH",
+        "atr": round(atr, 8),
+        "atr_pct": round(atr / price * 100, 4) if price else None,
         "structure": structure,
         "support_50": round(support, 8),
         "resistance_50": round(resistance, 8),

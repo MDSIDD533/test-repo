@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug app (live market data)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--host", "127.0.0.1", "--port", "8000", "--reload"],
+      "env": { "MARKET_DATA_MODE": "live" },
+      "cwd": "${workspaceFolder}",
+      "jinja": false,
+      "justMyCode": true
+    },
+    {
+      "name": "Debug app (replay recording)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--host", "127.0.0.1", "--port", "8000", "--reload"],
+      "env": { "MARKET_DATA_MODE": "replay" },
+      "cwd": "${workspaceFolder}",
+      "jinja": false,
+      "justMyCode": true
+    }
+  ]
+}

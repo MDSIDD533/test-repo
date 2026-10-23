@@ -1,0 +1,31 @@
+{
+  "base_url": "http://127.0.0.1:8002",
+  "captured_at": "2026-10-23T05:28:16.288Z",
+  "screenshots": [
+    {
+      "file": "01-dashboard.png",
+      "bytes": 920450
+    },
+    {
+      "file": "02-recorded-batch.png",
+      "bytes": 68597
+    },
+    {
+      "file": "03-chart.png",
+      "bytes": 238146
+    },
+    {
+      "file": "04-chart-1h.png",
+      "bytes": 220453
+    },
+    {
+      "file": "05-agents.png",
+      "bytes": 271748
+    },
+    {
+      "file": "06-operator-log.png",
+      "bytes": 152291
+    }
+  ],
+  "page_errors": []
+}

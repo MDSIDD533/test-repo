@@ -28,8 +28,15 @@ def validate_candles(
     now: float | None = None,
     minimum: int = 35,
     max_age_intervals: float = 3.0,
+    replay: bool = False,
 ) -> dict[str, Any]:
-    """Validate candle shape, OHLC relationships, ordering, and freshness."""
+    """Validate candle shape, OHLC relationships, ordering, and freshness.
+
+    ``replay`` is only ever passed for a recording whose timestamps are kept
+    exactly as the provider emitted them. It skips the *freshness* check alone —
+    every structural check still runs — and the result says so, so a recording
+    can never be mistaken for live data.
+    """
     if interval not in INTERVAL_SECONDS:
         raise CandleValidationError(f"Unsupported interval: {interval}")
     if not isinstance(candles, list) or len(candles) < minimum:
@@ -73,11 +80,12 @@ def validate_candles(
     if age_seconds < -INTERVAL_SECONDS[interval]:
         raise CandleValidationError("Latest candle timestamp is too far in the future")
     max_age_seconds = INTERVAL_SECONDS[interval] * max_age_intervals
-    if age_seconds > max_age_seconds:
+    stale = age_seconds > max_age_seconds
+    if stale and not replay:
         raise CandleValidationError(
             f"Market data is stale ({int(age_seconds)}s old; limit {int(max_age_seconds)}s)"
         )
-    return {
+    result = {
         "valid": True,
         "candle_count": len(candles),
         "interval": interval,
@@ -89,6 +97,13 @@ def validate_candles(
             "no_large_gaps", "freshness",
         ],
     }
+    if replay:
+        result["replay"] = True
+        result["freshness_skipped"] = True
+        result["live_data"] = False
+        result["stale_by_seconds"] = int(age_seconds) if stale else 0
+        result["checks"].append("freshness_skipped_for_replay")
+    return result
 
 
 def make_market_data_agent(
@@ -97,6 +112,7 @@ def make_market_data_agent(
     interval: str = "5m",
     limit: int = 220,
     clock: Callable[[], float] | None = None,
+    replay: bool = False,
 ) -> Callable[[dict[str, Any]], dict[str, Any]]:
     """Create a pipeline-compatible agent around an injected candle fetcher."""
     if interval not in INTERVAL_SECONDS:
@@ -109,20 +125,28 @@ def make_market_data_agent(
         if not symbol:
             raise ValueError("A non-empty symbol is required")
         rows = fetcher(symbol, interval, limit)
-        validation = validate_candles(rows, interval, now=clock() if clock else None)
+        validation = validate_candles(
+            rows, interval, now=clock() if clock else None, replay=replay
+        )
+        warnings = []
+        if replay:
+            warnings.append(
+                "REPLAY: these candles are a recording, not live market data. "
+                "Freshness was skipped so the recording can be analysed; no trade is authorized."
+            )
         return {
             "symbol": symbol,
             "interval": interval,
             "candles": rows,
             "validation": validation,
             "evidence": [{
-                "source": "injected_market_data_provider",
+                "source": "replayed_recording" if replay else "injected_market_data_provider",
                 "symbol": symbol,
                 "interval": interval,
                 "candle_count": validation["candle_count"],
                 "latest_candle_time": validation["latest_candle_time"],
             }],
-            "warnings": [],
+            "warnings": warnings,
         }
 
     return run

@@ -11,6 +11,8 @@ import math
 import random
 from typing import Any
 
+from app.market_data_agent import INTERVAL_SECONDS
+
 
 ALLOWED_SIMULATIONS = {100, 500, 1000}
 
@@ -76,6 +78,10 @@ def run_timetraveler_agent(context: dict[str, Any]) -> dict[str, Any]:
         "interval": interval,
         "simulation_count": count,
         "horizon_candles": horizon,
+        "horizon_seconds": horizon * INTERVAL_SECONDS.get(interval, 0) or None,
+        "simulation_only": True,
+        "not_an_observation": True,
+        "costs_modeled": False,
         "historical_return_samples": len(returns),
         "scenario_positive_pct": round(positive_count / count * 100, 2),
         "median_return_pct": round(percentile(0.5) * 100, 3),
@@ -83,6 +89,12 @@ def run_timetraveler_agent(context: dict[str, Any]) -> dict[str, Any]:
         "p95_return_pct": round(percentile(0.95) * 100, 3),
         "method": "historical_return_bootstrap",
         "calibrated": False,
+        "assumptions": [
+            "Historical returns are sampled with replacement from the last 100 returns.",
+            f"The horizon is {horizon} candles of {interval or 'the selected interval'}.",
+            "Fees, spread and slippage are not modeled.",
+            "Each path is a simulated scenario, not an observed future price.",
+        ],
         "evidence": [{
             "source": "validated_historical_candles",
             "candle_count": len(candles),

@@ -5,6 +5,9 @@ import math
 from typing import Any
 
 
+# A move smaller than this is treated as FLAT in both the forecast and the outcome.
+DIRECTION_THRESHOLD_PCT = 0.005
+
 POSITIVE_TERMS = {
     "surge", "surges", "surged", "rally", "rallies", "gain", "gains", "higher",
     "bullish", "inflow", "approval", "approve", "adoption", "breakout", "rise",
@@ -53,7 +56,11 @@ def make_two_minute_forecast(
         -0.20,
         min(0.20, 0.35 * momentum_pct + 0.025 * technical_bias + 0.015 * sentiment),
     )
-    direction = "UP" if expected_return_pct > 0.005 else "DOWN" if expected_return_pct < -0.005 else "FLAT"
+    direction = (
+        "UP" if expected_return_pct > DIRECTION_THRESHOLD_PCT
+        else "DOWN" if expected_return_pct < -DIRECTION_THRESHOLD_PCT
+        else "FLAT"
+    )
     return {
         "symbol": symbol.upper(),
         "horizon_seconds": 120,
@@ -85,7 +92,11 @@ def compare_forecast(forecast: dict[str, Any], actual_price: float) -> dict[str,
         raise ValueError("Prices must be finite and positive")
     actual_return = (actual / start - 1.0) * 100.0
     forecast_return = float(forecast["expected_return_pct"])
-    actual_direction = "UP" if actual_return > 0.005 else "DOWN" if actual_return < -0.005 else "FLAT"
+    actual_direction = (
+        "UP" if actual_return > DIRECTION_THRESHOLD_PCT
+        else "DOWN" if actual_return < -DIRECTION_THRESHOLD_PCT
+        else "FLAT"
+    )
     direction_match = forecast["direction"] == actual_direction
     absolute_error_pct = abs(predicted - actual) / start * 100.0
     return {

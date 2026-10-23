@@ -1,0 +1,431 @@
+{
+  "bias_note": "Trials are temporally dependent. A candidate that only beats the baseline by a small margin is not evidence of exploitable skill after fees and slippage.",
+  "candidate_beats_baseline_on_holdout": false,
+  "coverage_pct": 99.33,
+  "deployment_decision": "DO_NOT_DEPLOY",
+  "deployment_recommendation": "do not replace the current model; candidate did not beat the zero-return baseline by the predeclared margin on holdout",
+  "discovered_trial_files": 150,
+  "holdout_baselines": {
+    "always_flat_direction": {
+      "count": 45,
+      "direction_accuracy_pct": 6.67,
+      "note": "Predicting FLAT for every trial has the same price error as zero-return; its direction accuracy is the share of FLAT outcomes."
+    },
+    "momentum_only": {
+      "brier_sample_count": 0,
+      "brier_score": null,
+      "confusion_matrix": {
+        "DOWN": {
+          "DOWN": 11,
+          "FLAT": 3,
+          "UP": 9
+        },
+        "FLAT": {
+          "DOWN": 2,
+          "FLAT": 0,
+          "UP": 1
+        },
+        "UP": {
+          "DOWN": 12,
+          "FLAT": 0,
+          "UP": 7
+        }
+      },
+      "count": 45,
+      "direction_accuracy_pct": 40.0,
+      "evaluated_trials": 45,
+      "mean_absolute_error_pct": 0.062152,
+      "mean_absolute_percentage_error_pct": 0.06216,
+      "median_absolute_error_pct": 0.057205,
+      "per_direction": {
+        "DOWN": {
+          "f1": 0.4583,
+          "precision": 0.4783,
+          "predicted_count": 23,
+          "recall": 0.44,
+          "support": 25
+        },
+        "FLAT": {
+          "f1": null,
+          "precision": 0.0,
+          "predicted_count": 3,
+          "recall": 0.0,
+          "support": 3
+        },
+        "UP": {
+          "f1": 0.3889,
+          "precision": 0.3684,
+          "predicted_count": 19,
+          "recall": 0.4118,
+          "support": 17
+        }
+      },
+      "root_mean_squared_error_pct": 0.076191,
+      "tolerance_pct": 0.05,
+      "within_tolerance_count": 10,
+      "within_tolerance_rate_pct": 22.22
+    },
+    "technical_bias_only": {
+      "brier_sample_count": 0,
+      "brier_score": null,
+      "confusion_matrix": {
+        "DOWN": {
+          "DOWN": 12,
+          "FLAT": 1,
+          "UP": 8
+        },
+        "FLAT": {
+          "DOWN": 9,
+          "FLAT": 1,
+          "UP": 6
+        },
+        "UP": {
+          "DOWN": 4,
+          "FLAT": 1,
+          "UP": 3
+        }
+      },
+      "count": 45,
+      "direction_accuracy_pct": 35.56,
+      "evaluated_trials": 45,
+      "mean_absolute_error_pct": 0.04054,
+      "mean_absolute_percentage_error_pct": 0.040546,
+      "median_absolute_error_pct": 0.030094,
+      "per_direction": {
+        "DOWN": {
+          "f1": 0.5217,
+          "precision": 0.5714,
+          "predicted_count": 21,
+          "recall": 0.48,
+          "support": 25
+        },
+        "FLAT": {
+          "f1": 0.1053,
+          "precision": 0.0625,
+          "predicted_count": 16,
+          "recall": 0.3333,
+          "support": 3
+        },
+        "UP": {
+          "f1": 0.24,
+          "precision": 0.375,
+          "predicted_count": 8,
+          "recall": 0.1765,
+          "support": 17
+        }
+      },
+      "root_mean_squared_error_pct": 0.053639,
+      "tolerance_pct": 0.05,
+      "within_tolerance_count": 14,
+      "within_tolerance_rate_pct": 31.11
+    },
+    "zero_return": {
+      "brier_sample_count": 0,
+      "brier_score": null,
+      "confusion_matrix": {
+        "DOWN": {
+          "DOWN": 0,
+          "FLAT": 0,
+          "UP": 0
+        },
+        "FLAT": {
+          "DOWN": 25,
+          "FLAT": 3,
+          "UP": 17
+        },
+        "UP": {
+          "DOWN": 0,
+          "FLAT": 0,
+          "UP": 0
+        }
+      },
+      "count": 45,
+      "direction_accuracy_pct": 6.67,
+      "evaluated_trials": 45,
+      "mean_absolute_error_pct": 0.040572,
+      "mean_absolute_percentage_error_pct": 0.040579,
+      "median_absolute_error_pct": 0.029306,
+      "per_direction": {
+        "DOWN": {
+          "f1": null,
+          "precision": null,
+          "predicted_count": 0,
+          "recall": 0.0,
+          "support": 25
+        },
+        "FLAT": {
+          "f1": 0.125,
+          "precision": 0.0667,
+          "predicted_count": 45,
+          "recall": 1.0,
+          "support": 3
+        },
+        "UP": {
+          "f1": null,
+          "precision": null,
+          "predicted_count": 0,
+          "recall": 0.0,
+          "support": 17
+        }
+      },
+      "root_mean_squared_error_pct": 0.052678,
+      "tolerance_pct": 0.05,
+      "within_tolerance_count": 3,
+      "within_tolerance_rate_pct": 6.67
+    }
+  },
+  "holdout_candidate_metrics": {
+    "brier_sample_count": 0,
+    "brier_score": null,
+    "confusion_matrix": {
+      "DOWN": {
+        "DOWN": 0,
+        "FLAT": 0,
+        "UP": 0
+      },
+      "FLAT": {
+        "DOWN": 25,
+        "FLAT": 3,
+        "UP": 17
+      },
+      "UP": {
+        "DOWN": 0,
+        "FLAT": 0,
+        "UP": 0
+      }
+    },
+    "count": 45,
+    "direction_accuracy_pct": 6.67,
+    "evaluated_trials": 45,
+    "mean_absolute_error_pct": 0.040572,
+    "mean_absolute_percentage_error_pct": 0.040579,
+    "median_absolute_error_pct": 0.029306,
+    "per_direction": {
+      "DOWN": {
+        "f1": null,
+        "precision": null,
+        "predicted_count": 0,
+        "recall": 0.0,
+        "support": 25
+      },
+      "FLAT": {
+        "f1": 0.125,
+        "precision": 0.0667,
+        "predicted_count": 45,
+        "recall": 1.0,
+        "support": 3
+      },
+      "UP": {
+        "f1": null,
+        "precision": null,
+        "predicted_count": 0,
+        "recall": 0.0,
+        "support": 17
+      }
+    },
+    "root_mean_squared_error_pct": 0.052678,
+    "tolerance_pct": 0.05,
+    "within_tolerance_count": 3,
+    "within_tolerance_rate_pct": 6.67
+  },
+  "holdout_trials": 45,
+  "holdout_zero_return_baseline_metrics": {
+    "brier_sample_count": 0,
+    "brier_score": null,
+    "confusion_matrix": {
+      "DOWN": {
+        "DOWN": 0,
+        "FLAT": 0,
+        "UP": 0
+      },
+      "FLAT": {
+        "DOWN": 25,
+        "FLAT": 3,
+        "UP": 17
+      },
+      "UP": {
+        "DOWN": 0,
+        "FLAT": 0,
+        "UP": 0
+      }
+    },
+    "count": 45,
+    "direction_accuracy_pct": 6.67,
+    "evaluated_trials": 45,
+    "mean_absolute_error_pct": 0.040572,
+    "mean_absolute_percentage_error_pct": 0.040579,
+    "median_absolute_error_pct": 0.029306,
+    "per_direction": {
+      "DOWN": {
+        "f1": null,
+        "precision": null,
+        "predicted_count": 0,
+        "recall": 0.0,
+        "support": 25
+      },
+      "FLAT": {
+        "f1": 0.125,
+        "precision": 0.0667,
+        "predicted_count": 45,
+        "recall": 1.0,
+        "support": 3
+      },
+      "UP": {
+        "f1": null,
+        "precision": null,
+        "predicted_count": 0,
+        "recall": 0.0,
+        "support": 17
+      }
+    },
+    "root_mean_squared_error_pct": 0.052678,
+    "tolerance_pct": 0.05,
+    "within_tolerance_count": 3,
+    "within_tolerance_rate_pct": 6.67
+  },
+  "invalid_trial_count": 1,
+  "invalid_trial_files": [
+    {
+      "file": "trial-038.json",
+      "reason": "KeyError: 'forecast'"
+    }
+  ],
+  "metrics_definitions": {
+    "brier_score": "mean((P(UP) - 1[actual return > direction threshold])^2); null when no valid probability exists",
+    "direction_rule": "UP if return > threshold, DOWN if return < -threshold, otherwise FLAT",
+    "direction_threshold_pct": 0.005,
+    "mean_absolute_error_pct": "mean of |predicted_price - actual_price| / starting_price * 100",
+    "mean_absolute_percentage_error_pct": "mean of |predicted_price - actual_price| / actual_price * 100",
+    "root_mean_squared_error_pct": "sqrt(mean(((predicted_price - actual_price) / starting_price * 100)^2))",
+    "tolerance_pct": 0.05,
+    "within_tolerance_rule": "direction matches AND absolute price error <= 0.05% of the starting price"
+  },
+  "minimum_relative_improvement_pct": 5.0,
+  "observation_timing": {
+    "max_time_difference_seconds": 0.0,
+    "median_time_difference_seconds": 0.0,
+    "trials_with_recorded_offset": 149
+  },
+  "original_forecast_holdout_metrics": {
+    "brier_sample_count": 0,
+    "brier_score": null,
+    "confusion_matrix": {
+      "DOWN": {
+        "DOWN": 12,
+        "FLAT": 1,
+        "UP": 7
+      },
+      "FLAT": {
+        "DOWN": 3,
+        "FLAT": 0,
+        "UP": 1
+      },
+      "UP": {
+        "DOWN": 10,
+        "FLAT": 2,
+        "UP": 9
+      }
+    },
+    "count": 45,
+    "direction_accuracy_pct": 46.67,
+    "evaluated_trials": 45,
+    "mean_absolute_error_pct": 0.050607,
+    "mean_absolute_percentage_error_pct": 0.050617,
+    "median_absolute_error_pct": 0.041037,
+    "per_direction": {
+      "DOWN": {
+        "f1": 0.5333,
+        "precision": 0.6,
+        "predicted_count": 20,
+        "recall": 0.48,
+        "support": 25
+      },
+      "FLAT": {
+        "f1": null,
+        "precision": 0.0,
+        "predicted_count": 4,
+        "recall": 0.0,
+        "support": 3
+      },
+      "UP": {
+        "f1": 0.4737,
+        "precision": 0.4286,
+        "predicted_count": 21,
+        "recall": 0.5294,
+        "support": 17
+      }
+    },
+    "reported_almost_same_count": 18,
+    "root_mean_squared_error_pct": 0.064928,
+    "tolerance_pct": 0.05,
+    "within_tolerance_count": 18,
+    "within_tolerance_rate_pct": 40.0
+  },
+  "relative_improvement_vs_zero_return_pct": 0.0,
+  "report_directory": "forecast-batch-reports",
+  "selected_candidate_weights": {
+    "momentum": 0.0,
+    "news_sentiment": 0.0,
+    "technical_bias": 0.0
+  },
+  "selection_metric": "training mean absolute price error percentage",
+  "selection_note": "Candidate selected on training data only; holdout is reported once and never used for tuning.",
+  "split_policy": "chronological; earliest trials train, latest trials holdout",
+  "training_metrics": {
+    "brier_sample_count": 0,
+    "brier_score": null,
+    "confusion_matrix": {
+      "DOWN": {
+        "DOWN": 0,
+        "FLAT": 0,
+        "UP": 0
+      },
+      "FLAT": {
+        "DOWN": 49,
+        "FLAT": 9,
+        "UP": 46
+      },
+      "UP": {
+        "DOWN": 0,
+        "FLAT": 0,
+        "UP": 0
+      }
+    },
+    "count": 104,
+    "direction_accuracy_pct": 8.65,
+    "evaluated_trials": 104,
+    "mean_absolute_error_pct": 0.034997,
+    "mean_absolute_percentage_error_pct": 0.035,
+    "median_absolute_error_pct": 0.031531,
+    "per_direction": {
+      "DOWN": {
+        "f1": null,
+        "precision": null,
+        "predicted_count": 0,
+        "recall": 0.0,
+        "support": 49
+      },
+      "FLAT": {
+        "f1": 0.1593,
+        "precision": 0.0865,
+        "predicted_count": 104,
+        "recall": 1.0,
+        "support": 9
+      },
+      "UP": {
+        "f1": null,
+        "precision": null,
+        "predicted_count": 0,
+        "recall": 0.0,
+        "support": 46
+      }
+    },
+    "root_mean_squared_error_pct": 0.04424,
+    "tolerance_pct": 0.05,
+    "within_tolerance_count": 9,
+    "within_tolerance_rate_pct": 8.65
+  },
+  "training_trials": 104,
+  "valid_trials": 149,
+  "warning": "Exploratory offline evaluation only; trials may be temporally dependent and are not proof of predictive skill."
+}

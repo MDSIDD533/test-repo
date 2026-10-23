@@ -7,3 +7,10 @@ venv/
 .coverage
 dist/
 build/
+
+# Append-only local forecast ledger and other runtime state
+runtime/
+
+# Live verification artifacts (screenshots, logs, JSON evidence)
+# Root-level runtime evidence only; committed records live under docs/.
+/evidence/

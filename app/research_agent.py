@@ -13,6 +13,16 @@ from urllib.parse import urlparse
 ResearchProvider = Callable[[str, str], list[dict[str, Any]]]
 
 
+class ResearchUnavailable(ValueError):
+    """Raised when no fresh, source-attributed evidence exists for this run.
+
+    The pipeline records this as an explicit ``unavailable`` stage rather than
+    treating a quiet news day as a software failure.
+    """
+
+    stage_status = "unavailable"
+
+
 def _parse_timestamp(value: Any) -> datetime:
     if not isinstance(value, str) or not value.strip():
         raise ValueError("Research item must include published_at as an ISO timestamp")
@@ -56,7 +66,7 @@ def make_research_agent(
         if not isinstance(raw_items, list):
             raise ValueError("Research provider must return a list")
         if not raw_items:
-            raise ValueError("No research evidence available; refusing to fabricate a summary")
+            raise ResearchUnavailable("No research evidence available; refusing to fabricate a summary")
 
         evidence: list[dict[str, Any]] = []
         for index, item in enumerate(raw_items):
@@ -85,7 +95,7 @@ def make_research_agent(
                 "summary": str(item.get("summary", "")).strip(),
             })
         if not evidence:
-            raise ValueError("No fresh research evidence available for this run")
+            raise ResearchUnavailable("No fresh research evidence available for this run")
         evidence.sort(key=lambda item: item["published_at"], reverse=True)
         return {
             "symbol": symbol,

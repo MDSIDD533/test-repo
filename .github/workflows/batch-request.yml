@@ -1,0 +1,55 @@
+name: Batch request (push-authorized)
+
+# The Actions token in this environment cannot dispatch workflows directly, so
+# an explicit request file acts as the authorization. It is inert unless the
+# file exists at this exact path AND contains confirmation == RUN-LIVE-BATCH.
+on:
+  push:
+    paths:
+      - ".github/batch-request.json"
+
+permissions:
+  contents: read
+
+jobs:
+  read:
+    name: Read the request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      authorized: ${{ steps.read.outputs.authorized }}
+      trials: ${{ steps.read.outputs.trials }}
+      spacing: ${{ steps.read.outputs.spacing }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authorize only an explicit request
+        id: read
+        run: |
+          file=".github/batch-request.json"
+          if [ ! -f "$file" ]; then
+            echo "authorized=false" >> "$GITHUB_OUTPUT"
+            echo "No request file in this commit; nothing to do."
+            exit 0
+          fi
+          confirmation=$(jq -r '.confirmation // ""' "$file")
+          trials=$(jq -r '.trials // 150' "$file")
+          spacing=$(jq -r '.spacing_seconds // 180' "$file")
+          echo "trials=$trials" >> "$GITHUB_OUTPUT"
+          echo "spacing=$spacing" >> "$GITHUB_OUTPUT"
+          if [ "$confirmation" = "RUN-LIVE-BATCH" ]; then
+            echo "authorized=true" >> "$GITHUB_OUTPUT"
+            echo "Authorized a $trials-trial batch at ${spacing}s spacing."
+          else
+            echo "authorized=false" >> "$GITHUB_OUTPUT"
+            echo "Request file does not carry the authorization string."
+          fi
+
+  run:
+    name: Start the live batch
+    needs: read
+    if: needs.read.outputs.authorized == 'true'
+    uses: ./.github/workflows/live-forecast-batch.yml
+    with:
+      confirmation: RUN-LIVE-BATCH
+      trials: ${{ needs.read.outputs.trials }}
+      spacing_seconds: ${{ needs.read.outputs.spacing }}
