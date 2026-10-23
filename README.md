@@ -168,7 +168,7 @@ Copy `.env.example` values into your environment if you want to change paper ris
 
 Current verified baseline (sandbox, Python 3.11.2, Node 22.22.3):
 
-- Python: **327 passed**.
+- Python: **328 passed**.
 - JavaScript chart core: **19 passed**.
 - Browser and live-provider checks: **7 browser tests passed** and the provider checks passed in run `39743024896` (commit `acd02bd`). Binance returned HTTP 451 to that runner, so the verified intervals (`5m`, `1h`, `1d`) used the labelled Coinbase fallback; Binance itself is still unverified.
 - GitHub Actions `tests` workflow: green on the latest pushed commit at time of writing; the status of the newest commit must always be checked separately.

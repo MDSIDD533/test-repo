@@ -4,7 +4,7 @@ Branch: `arena/a852519f-test-repo` (branched from `main` at `d0101156acc5d23801a
 
 Overall status: **PARTIALLY COMPLETE**.
 
-The checklist score is **98.4%** (91.5 / 93 items), but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
+The checklist score is **98.4%** (92.5 / 94 items), but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
 
 ## 1. Inspection findings
 
@@ -201,7 +201,7 @@ Verified locally with Python 3.11.2 and Node 22.22.3:
 
 ```text
 python -m pytest -q
-309 passed, 1 warning in 1.47s
+328 passed, 1 warning in 3.64s
 
 node --test static/chart-core.test.js
 # tests 19
@@ -253,8 +253,8 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 
 | # | Item | Score | Evidence |
 |---|---|---|---|
-| 1 | Backend unit tests | 1 | 309 passing |
-| 2 | Chart logic tests | 1 | 19 passing |
+| 1 | Backend unit tests | 1 | 328 passing |
+| 2 | Chart logic tests | 1 | 20 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers; `requests.get` replaced in provider tests |
 | 5 | CI green on latest intended commit | 1 | dd88ec9 runs 39781713504 (push) and 39781707473 (live) success |
@@ -267,8 +267,9 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 | 12 | Structured logging with an operator-visible tail | 1 | `app/observability.py`, `/api/logs/recent`, 15 tests |
 | 13 | End-to-end live evidence loop, honestly attributed | 1 | `scripts/freeze_and_resolve.py` (10 tests) freezes, waits the forecast's own horizon, resolves, and names whether this run's forecast was the row resolved |
 | 14 | Reproducible batch measurement with published summary | 1 | `scripts/summarize_trial_batch.py` (8 tests) reports accuracy + Wilson CI + baselines + non-overlapping subset; batch run `39761203609` published it from CI |
+| 15 | Server-side stream relay with provider fallback | 1 | `app/stream_relay.py`, 17 tests: trading-trade aggregation, provider order, 451 fallback, silent-provider timeout, bounded handshake; browser proof run `39903074565` |
 
-**Testing: 14 / 14 = 100%**
+**Testing: 15 / 15 = 100%**
 
 ## 8. Documentation
 

@@ -164,9 +164,19 @@ async def candles_stream(websocket: WebSocket, symbol: str = 'BTCUSDT', interval
         return
 
     errors: list[dict] = []
+    sent = 0
     try:
         async for message in stream_messages(symbol, interval, errors=errors):
             await websocket.send_text(json.dumps(message))
+            sent += 1
+        if sent == 0:
+            # No provider worked. Leaving the socket open would look like a
+            # healthy but silent feed, so close it and say why.
+            observability.log_event(
+                'warning', 'stream_unavailable',
+                symbol=symbol, interval=interval, provider_errors=errors,
+            )
+            await websocket.close(code=1011, reason='no stream provider was reachable')
     except WebSocketDisconnect:
         pass
     except Exception as exc:  # noqa: BLE001

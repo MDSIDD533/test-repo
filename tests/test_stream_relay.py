@@ -242,3 +242,32 @@ def test_the_providers_endpoint_states_the_real_candidate_order(monkeypatch):
     overridden = client.get("/api/stream/providers?symbol=BTCUSDT").json()
     assert overridden["candidates"] == ["coinbase"]
     assert overridden["override"] == "coinbase"
+
+
+def test_a_provider_that_never_answers_the_handshake_is_abandoned():
+    """A black-holed connection must not hang the client forever."""
+    import time
+
+    async def hang(url, open_timeout=None):
+        return None
+
+    @asynccontextmanager
+    async def connect(url, open_timeout=None):
+        await asyncio.sleep(30)  # never opens
+        yield FakeSocket([])
+
+    errors = []
+    started = time.monotonic()
+
+    async def run():
+        out = []
+        async for message in relay.stream_messages(
+            "BTCUSDT", "5m", connect=connect, providers=["binance"],
+            open_timeout=0.1, errors=errors,
+        ):
+            out.append(message)
+        return out
+
+    assert asyncio.run(run()) == []
+    assert time.monotonic() - started < 10
+    assert errors and "TimeoutError" in errors[0]["error"]

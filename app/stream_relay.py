@@ -284,15 +284,22 @@ async def stream_messages(
                 errors.append({"provider": provider, "error": "unknown provider"})
             continue
 
+        connector = None
         try:
-            async with connect(url, open_timeout=open_timeout) as ws:
-                if handshake is not None:
-                    await ws.send(json.dumps(handshake))
-                messages = _relay(ws, provider, symbol, interval)
-                first = await asyncio.wait_for(messages.__anext__(), timeout=first_message_timeout)
-                yield first
-                async for message in messages:
-                    yield message
+            # DNS and TCP can block longer than the library's own open_timeout,
+            # so the opening handshake is bounded here as well. A client must
+            # never wait forever because a provider silently black-holes SYNs.
+            connector = connect(url, open_timeout=open_timeout)
+            ws = await asyncio.wait_for(connector.__aenter__(), timeout=open_timeout + 2.0)
+            if handshake is not None:
+                await ws.send(json.dumps(handshake))
+            messages = _relay(ws, provider, symbol, interval)
+            first = await asyncio.wait_for(messages.__anext__(), timeout=first_message_timeout)
+            yield first
+            async for message in messages:
+                yield message
+        except asyncio.CancelledError:
+            raise
         except (StopAsyncIteration, asyncio.TimeoutError) as exc:
             if errors is not None:
                 errors.append({
@@ -300,9 +307,13 @@ async def stream_messages(
                     "error": f"no candle within {first_message_timeout}s ({type(exc).__name__})",
                 })
             continue
-        except asyncio.CancelledError:
-            raise
         except Exception as exc:  # noqa: BLE001 - any transport failure means "try the next one"
             if errors is not None:
                 errors.append({"provider": provider, "error": f"{type(exc).__name__}: {exc}"})
             continue
+        finally:
+            if connector is not None:
+                try:
+                    await connector.__aexit__(None, None, None)
+                except Exception:  # noqa: BLE001 - closing a dead socket must not mask the real error
+                    pass
