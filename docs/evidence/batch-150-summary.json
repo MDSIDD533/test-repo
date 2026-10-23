@@ -1,0 +1,81 @@
+{
+  "baselines": {
+    "always_flat_direction_accuracy_pct": 8.05,
+    "majority_class_direction_accuracy_pct": 49.66,
+    "zero_return_mae_pct": 0.036681
+  },
+  "confusion_matrix": {
+    "DOWN": {
+      "DOWN": 29,
+      "FLAT": 4,
+      "UP": 23
+    },
+    "FLAT": {
+      "DOWN": 9,
+      "FLAT": 1,
+      "UP": 4
+    },
+    "UP": {
+      "DOWN": 36,
+      "FLAT": 7,
+      "UP": 36
+    }
+  },
+  "coverage_pct": 99.33,
+  "direction_accuracy_ci95_pct": [
+    36.56,
+    52.32
+  ],
+  "direction_accuracy_pct": 44.3,
+  "direction_correct": 66,
+  "discovered_trial_files": 150,
+  "independence": {
+    "non_overlapping_direction_accuracy_pct": 38.78,
+    "non_overlapping_trials": 49,
+    "note": "Trials whose 120-second windows overlap are not independent observations. The non-overlapping figure is the conservative read.",
+    "window_seconds": 120.0
+  },
+  "invalid_trial_count": 1,
+  "invalid_trial_files": [
+    {
+      "file": "trial-038.json",
+      "reason": "KeyError: 'forecast'"
+    }
+  ],
+  "mean_absolute_actual_return_pct": 0.036681,
+  "mean_absolute_error_pct_of_start": 0.045871,
+  "mean_absolute_percentage_error_pct": 0.045871,
+  "observation_sources": {
+    "spot_ticker": 149
+  },
+  "per_direction": {
+    "DOWN": {
+      "actual": 74,
+      "correct": 29,
+      "precision_pct": 51.79,
+      "predicted": 56,
+      "recall_pct": 39.19
+    },
+    "FLAT": {
+      "actual": 12,
+      "correct": 1,
+      "precision_pct": 7.14,
+      "predicted": 14,
+      "recall_pct": 8.33
+    },
+    "UP": {
+      "actual": 63,
+      "correct": 36,
+      "precision_pct": 45.57,
+      "predicted": 79,
+      "recall_pct": 57.14
+    }
+  },
+  "report_directory": "forecast-batch-reports",
+  "root_mean_squared_error_pct": 0.058723,
+  "strict_tolerance_pass_count": 58,
+  "strict_tolerance_pass_pct": 38.93,
+  "valid_trials": 149,
+  "valid_trials_from_files": 149,
+  "warning": "Mechanics and empirical accuracy only. No fees, no execution, no claim of tradable skill."
+}

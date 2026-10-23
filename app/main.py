@@ -88,6 +88,33 @@ def forecast_evaluation_report():
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=500, detail=f'Recorded forecast evaluation report is unreadable: {exc}')
 
+@app.get('/api/reports/batch-summary')
+def batch_summary_report():
+    """Serve the committed summary of the last live batch, or say it is missing."""
+    summary_path = ROOT / 'docs' / 'evidence' / 'batch-150-summary.json'
+    evaluation_path = ROOT / 'docs' / 'evidence' / 'batch-150-evaluation.json'
+    if not summary_path.exists():
+        raise HTTPException(status_code=404, detail='No recorded live batch summary is available')
+    try:
+        summary = json.loads(summary_path.read_text(encoding='utf-8'))
+        evaluation = (
+            json.loads(evaluation_path.read_text(encoding='utf-8'))
+            if evaluation_path.exists() else None
+        )
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=500, detail=f'Recorded batch summary is unreadable: {exc}')
+    return {
+        'run_id': '39761203609',
+        'commit': '806dff1',
+        'recorded_on': '2026-10-22',
+        'trials_requested': 150,
+        'summary': summary,
+        'evaluation': evaluation,
+        'is_live_now': False,
+        'note': 'Stored result of a completed live batch, not a live measurement.',
+    }
+
+
 @app.get('/api/health')
 def health(): return {'status':'ok','version':app.version,'mode':'PAPER ONLY','live_trading_enabled':False}
 
