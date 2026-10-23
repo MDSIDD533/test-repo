@@ -75,6 +75,33 @@ def _load_replay_fixture() -> dict[str, Any] | None:
     return _REPLAY_CACHE.get('fixture')
 
 
+def replay_tickers() -> list[dict[str, Any]]:
+    """Build 24h rows from the recording itself, for the symbols it contains."""
+    fixture = _load_replay_fixture()
+    if not fixture:
+        raise MarketDataError(
+            f'Replay mode is on but no recording was found at {REPLAY_FIXTURE}'
+        )
+    symbol = str(fixture.get('symbol', '')).upper()
+    rows = _replay_rows(symbol, '1h', 500)
+    if not rows:
+        raise MarketDataError('The replay recording contains no usable candles')
+    first = rows[0]['open']
+    last = rows[-1]['close']
+    change = (last / first - 1.0) * 100.0 if first else 0.0
+    window = len(rows)
+    return [{
+        'symbol': symbol,
+        'price': last,
+        'change_24h_pct': round(change, 4),
+        'volume_24h': sum(row['volume'] for row in rows),
+        'high_24h': max(row['high'] for row in rows),
+        'low_24h': min(row['low'] for row in rows),
+        'window_hours': window,
+        'replay': True,
+    }]
+
+
 def _replay_rows(symbol: str, interval: str, limit: int) -> list[dict[str, float]]:
     fixture = _load_replay_fixture()
     if not fixture:

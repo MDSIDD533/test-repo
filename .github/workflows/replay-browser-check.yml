@@ -1,0 +1,79 @@
+name: Replay browser check
+
+# Proves the replay recording actually renders in a real browser and is never
+# presented as live data. Runs without any exchange access.
+on:
+  push:
+    paths:
+      - ".github/workflows/replay-browser-check.yml"
+      - "fixtures/**"
+      - "tests/browser/replay.spec.js"
+      - "app/market.py"
+      - "app/main.py"
+      - "app/market_data_agent.py"
+      - "static/chart.html"
+      - "static/index.html"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  replay:
+    name: Replay renders honestly
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          npm install --no-save @playwright/test
+          npx playwright install --with-deps chromium
+      - name: Start the app in replay mode
+        run: |
+          mkdir -p evidence
+          MARKET_DATA_MODE=replay nohup python -m uvicorn app.main:app \
+            --host 127.0.0.1 --port 8001 > evidence/replay-uvicorn.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8001/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8001/api/health
+      - name: Run the replay browser tests
+        run: |
+          set +e
+          BASE_URL=http://127.0.0.1:8001 npx playwright test tests/browser/replay.spec.js 2>&1 | tee evidence/replay-browser.log
+          echo "PLAYWRIGHT_EXIT=${PIPESTATUS[0]}" >> "$GITHUB_ENV"
+          exit 0
+      - name: Publish the result
+        if: always()
+        run: |
+          {
+            echo "### Replay browser check"
+            echo ""
+            echo '```'
+            tail -n 40 evidence/replay-browser.log 2>/dev/null || echo "no log"
+            echo '```'
+            echo ""
+            echo "exit=${PLAYWRIGHT_EXIT:-1}"
+          } > replay-comment.md
+          cat replay-comment.md >> "$GITHUB_STEP_SUMMARY"
+          pr=$(gh pr list --head "$GITHUB_REF_NAME" --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)
+          if [ -n "$pr" ]; then gh pr comment "$pr" --body-file replay-comment.md || true; fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Fail when the browser check failed
+        if: always()
+        run: |
+          if [ "${PLAYWRIGHT_EXIT:-1}" != "0" ]; then
+            echo "Replay browser check failed (exit ${PLAYWRIGHT_EXIT:-missing})."
+            exit 1
+          fi

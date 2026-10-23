@@ -271,6 +271,35 @@ def market_summary():
 
 @app.get('/api/scanner')
 def scanner(limit:int=Query(default=2000,ge=10,le=3000),analyze_top:int=Query(default=20,ge=0,le=50)):
+    if REPLAY_MODE:
+        from app.market import replay_tickers
+        try:
+            rows = replay_tickers()
+        except MarketDataError as exc:
+            raise HTTPException(status_code=502, detail=str(exc))
+        output = []
+        for i, row in enumerate(rows):
+            item = {**row, 'signal': 'NOT SCANNED', 'confidence': None, 'reasons': []}
+            if i < analyze_top:
+                try:
+                    result = analyze_candles(candles(row['symbol'], '5m', 220), row['symbol'], '5m')
+                    item.update(signal=result['signal'], confidence=result['confidence'], reasons=result['reasons'][:2])
+                except (MarketDataError, ValueError):
+                    item['signal'] = 'DATA ERROR'
+            output.append(item)
+        metadata = replay_metadata()
+        return {
+            'total_pairs': len(rows),
+            'analyzed_pairs': min(analyze_top, len(rows)),
+            'returned': output[:limit],
+            'timeframe': '5m',
+            'data_mode': 'replay',
+            'recording': metadata,
+            'note': (
+                'REPLAY: the scanner is limited to the symbol in the recording. '
+                'No live pair discovery is performed.'
+            ),
+        }
     try:
         rows=all_24h_tickers(); output=[]
         for i,row in enumerate(rows):
