@@ -8,7 +8,8 @@ const fs = require('fs');
 const { chromium } = require('playwright');
 
 const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:8002';
-const OUT_DIR = process.env.OUT_DIR || path.join(__dirname, '..', '..', 'docs', 'screenshots');
+// __dirname is <repo>/scripts, so one level up is the repository root.
+const OUT_DIR = process.env.OUT_DIR || path.join(__dirname, '..', 'docs', 'screenshots');
 
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
