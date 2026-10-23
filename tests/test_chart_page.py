@@ -133,3 +133,12 @@ if __name__ == "__main__":
         # The page must not hard-code "Binance" when another provider served the data.
         self.assertIn("candlePayload.provider", self.chart)
         self.assertNotIn("'Binance REST (' + interval + ')'", self.chart)
+
+
+def test_the_chart_survives_having_no_stream_in_replay_mode():
+    html = (ROOT / "static" / "chart.html").read_text(encoding="utf-8")
+
+    # A recording never opens a stream, so every read of state.stream must be guarded.
+    assert "if (!state.replayMode) ensureStream(" in html
+    assert "!state.stream || !state.stream.isLive()" in html
+    assert "state.stream ? state.stream.snapshot().state : 'idle'" in html

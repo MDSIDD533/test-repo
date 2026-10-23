@@ -401,8 +401,9 @@
       if (!state.replayMode) ensureStream(symbol, interval, !auto);
       if (built.warnings.length) {
         $('statusText').textContent = built.warnings[0];
-      } else if (!state.stream.isLive()) {
-        const streamState = state.stream.snapshot().state;
+      } else if (!state.stream || !state.stream.isLive()) {
+        // Replay mode never opens a stream, so there may be no stream at all.
+        const streamState = state.stream ? state.stream.snapshot().state : 'idle';
         if (streamState === 'connecting' || streamState === 'connected' || streamState === 'reconnecting') {
           setConnection('connecting', 'REST data loaded for ' + symbol + ' ' + interval +
             '; live stream is connecting. Chart updates are not yet live.');

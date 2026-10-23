@@ -25,8 +25,9 @@ test('replay mode renders recorded candles and labels itself', async ({ page }) 
 
   // The connection badge must never read LIVE for a recording.
   const badge = await page.locator('#connBadge').innerText();
-  expect(badge).not.toBe('LIVE');
-  expect(badge).toBe('REPLAY');
+  const status = await page.locator('#statusText').innerText();
+  expect(badge, `badge=${badge} status=${status} errors=${JSON.stringify(pageErrors)}`).not.toBe('LIVE');
+  expect(badge, `badge=${badge} status=${status}`).toBe('REPLAY');
 
   const source = await page.locator('#dataSource').innerText();
   expect(source).toMatch(/replay/i);
