@@ -64,6 +64,22 @@ The stored aggregate report is `reports/forecast-model-evaluation-2026-10-21.jso
 
 To run a batch yourself, `gh workflow run live-forecast-batch.yml -f confirmation=RUN-LIVE-BATCH -f trials=150`. A batch is expensive runner time: three shards, 50 trials each, 180 s apart, roughly 2.5 hours.
 
+### Offline replay mode (recorded data, never presented as live)
+
+Some networks cannot reach an exchange at all — the development sandbox here cannot. Rather than invent candles, the app can replay a **recording of real provider data**:
+
+```bash
+MARKET_DATA_MODE=replay uvicorn app.main:app --port 8000
+```
+
+- `fixtures/candles.json` holds candles recorded from the real provider layer (BTCUSDT via `coinbase:BTC-USD`, five intervals, 300 candles each) with the provider's own timestamps.
+- Every response states its source: `/api/candles` returns `"provider": "replay:BTCUSDT@5m"`, `/api/health` returns `"data_mode": "replay"` with the recording's `fetched_at`, and `/api/data-mode` describes the recording.
+- Intervals the recording does not contain (`3m`, `30m`, `2h`, `4h`) are **resampled from a real coarser/finer interval** and labelled, e.g. `replay:BTCUSDT@1h->4h`. Nothing is synthesised.
+- The chart shows a **REPLAY** badge, never `LIVE`, opens **no WebSocket**, and displays a banner with the recording time. The dashboard shows the same banner.
+- The agent pipeline runs on the recording, but `validate_candles(..., replay=True)` skips **only** the freshness rule, records `freshness_skipped` / `live_data: false` / `stale_by_seconds`, and the action stays `NO TRADE`. The live path still rejects stale candles.
+- Regenerate the recording on a machine that can reach an exchange: `python scripts/export_candles_fixture.py --output fixtures/candles.json`.
+- Browser-verified by `tests/browser/replay.spec.js` in the `Replay browser check` workflow: real Chromium loads the chart from the recording and asserts the page never claims to be live.
+
 ### Paper trading and backtesting
 
 - Paper account with balance, equity, open exposure, realized P&L and fees, persisted to an atomic JSON file (`runtime/paper_state.json` by default) and restored on restart.
@@ -141,7 +157,7 @@ Copy `.env.example` values into your environment if you want to change paper ris
 
 Current verified baseline (sandbox, Python 3.11.2, Node 22.22.3):
 
-- Python: **293 passed**.
+- Python: **309 passed**.
 - JavaScript chart core: **19 passed**.
 - Browser and live-provider checks: **7 browser tests passed** and the provider checks passed in run `39743024896` (commit `acd02bd`). Binance returned HTTP 451 to that runner, so the verified intervals (`5m`, `1h`, `1d`) used the labelled Coinbase fallback; Binance itself is still unverified.
 - GitHub Actions `tests` workflow: green on the latest pushed commit at time of writing; the status of the newest commit must always be checked separately.

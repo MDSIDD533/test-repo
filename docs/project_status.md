@@ -4,7 +4,7 @@ Branch: `arena/a852519f-test-repo` (branched from `main` at `d0101156acc5d23801a
 
 Overall status: **PARTIALLY COMPLETE**.
 
-The checklist score is **95.4%** (83 / 87 items), but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
+The checklist score is **95.7%** (89 / 93 items), but the system is not complete because several items that require live external evidence are explicitly **NOT VERIFIED**. A high percentage is not a substitute for missing browser and provider verification.
 
 ## 1. Inspection findings
 
@@ -85,6 +85,19 @@ The overall percentage is the sum of item scores divided by the number of items.
 | 19 | Live WebSocket updates verified in a browser | 0 | Binance WS returns HTTP 451 from GitHub runners; REST path verified instead |
 
 **Chart: 17.5 / 19 = 92.1%**
+
+Replay mode (added after the chart audit) is tracked separately because it is a data-availability feature, not a chart feature:
+
+| # | Item | Score | Evidence |
+|---|---|---|---|
+| 1 | Recorded data served with its true source and timestamps | 1 | `fixtures/candles.json` from `coinbase:BTC-USD`; `/api/candles` returns `replay:BTCUSDT@5m` |
+| 2 | Missing intervals resampled, never invented | 1 | `3m`/`30m`/`2h`/`4h` derived and labelled (`@1h->4h`), 12 tests |
+| 3 | UI never claims to be live | 1 | REPLAY badge, no WebSocket, banner on chart and dashboard |
+| 4 | Freshness rule relaxed only for a declared recording | 1 | `validate_candles(replay=True)` records `freshness_skipped`; live path still raises |
+| 5 | Browser-proven rendering | 1 | `Replay browser check` run `39900034198`: **3 passed** in real Chromium |
+| 6 | Live path unchanged after the change | 1 | live-verification run `39901160307`: providers PASS, live browser **7 passed** |
+
+**Replay mode: 6 / 6 = 100%**
 
 ## 4. Agents
 
@@ -188,7 +201,7 @@ Verified locally with Python 3.11.2 and Node 22.22.3:
 
 ```text
 python -m pytest -q
-293 passed, 1 warning in 1.40s
+309 passed, 1 warning in 1.47s
 
 node --test static/chart-core.test.js
 # tests 19
@@ -240,7 +253,7 @@ The 100-trial live batch was accidentally triggered by a changed script path dur
 
 | # | Item | Score | Evidence |
 |---|---|---|---|
-| 1 | Backend unit tests | 1 | 293 passing |
+| 1 | Backend unit tests | 1 | 309 passing |
 | 2 | Chart logic tests | 1 | 19 passing |
 | 3 | Mocked API tests | 1 | no live Binance dependency |
 | 4 | Tests do not require live Binance | 1 | monkeypatched providers; `requests.get` replaced in provider tests |
@@ -276,6 +289,10 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 
 ## 9. Verified working now
 
+- **Replay mode is real, not a mock.** `scripts/export_candles_fixture.py` ran on a CI runner that can reach Coinbase and recorded 1,500 candles (5 intervals x 300, BTCUSD 79,676–84,856) into `fixtures/candles.json`. Replaying it, `/api/candles` answered 120 valid 1h candles with `provider: replay:BTCUSDT@1h`, and all nine app timeframes produced correctly spaced rows (60/180/300/900/1800/3600/7200/14400/86400 s).
+- The agent pipeline completes on the recording: `market_data`, `market_analysis`, `prediction`, `risk_decision`, `timetraveler` and `report` all `completed`; `research` fails because the news provider is unreachable here; action stays `NO TRADE`.
+- A real Chromium run (`Replay browser check` `39900034198`) proved the chart renders the recording, shows the REPLAY badge instead of LIVE, never opens a stream, and that `/api/health` reports `data_mode: replay`.
+
 - The 150-trial live batch ran to completion in CI (run `39761203609`, three shards, ~2.5 h) and both the batch summary and the chronological evaluation were published by the workflow itself. All 149 usable trials observed the outcome through a real spot ticker with a 0.0 s median offset.
 
 - `uvicorn app.main:app` starts; `/api/health` returns `PAPER ONLY`, live disabled.
@@ -301,6 +318,8 @@ Secret scan: no API keys, private keys, passwords or personal access tokens were
 - A live-server smoke test wrote one **synthetic** ledger record through the API (never real market data), resolved it, saw `direction_accuracy_pct = 100.0` for that single record, then deleted the temporary `runtime/` file. This verifies the HTTP path only; it is not evidence of forecast skill.
 
 ## 10. NOT VERIFIED / blockers
+
+0c. **Replay is a recording, not live market data.** It exists because this sandbox cannot reach any exchange. The recording is a snapshot from `2026-10-23T04:12Z`; it does not update, and the freshness rule is skipped for it *by declaration only* (the live path still rejects stale candles, proven by `test_stale_candles_still_fail_outside_replay`).
 
 0. **Binance itself remains unverified.** Binance answers GitHub-hosted runners with HTTP 451 (geo-block) and is unreachable from the development sandbox. The chart, intervals and server endpoints are verified through the labelled Coinbase fallback. Verifying Binance's own candles and WebSocket requires a network Binance serves.
 0b. **A defect the browser run caught:** `LiveStream` stored host timer functions and called them as object methods, which Chrome rejects with `TypeError: Illegal invocation`. Node does not enforce the receiver rule, so 18 unit tests passed while the first real browser run failed. Fixed in `acd02bd` and covered by a regression test.
