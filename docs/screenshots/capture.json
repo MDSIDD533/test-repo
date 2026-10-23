@@ -1,0 +1,33 @@
+{
+  "base_url": "http://127.0.0.1:8002",
+  "captured_at": "2026-10-23T05:25:51.141Z",
+  "screenshots": [
+    {
+      "file": "01-dashboard.png",
+      "bytes": 884377
+    },
+    {
+      "file": "02-recorded-batch.png",
+      "bytes": 68597
+    },
+    {
+      "file": "03-chart.png",
+      "bytes": 224750
+    },
+    {
+      "file": "04-chart-1h.png",
+      "bytes": 121342
+    },
+    {
+      "file": "05-agents.png",
+      "bytes": 272496
+    },
+    {
+      "file": "06-operator-log.png",
+      "bytes": 150389
+    }
+  ],
+  "page_errors": [
+    "console: Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+  ]
+}
